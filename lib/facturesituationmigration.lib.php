@@ -28,24 +28,20 @@
  */
 function facturesituationmigrationAdminPrepareHead()
 {
-	global $langs, $conf;
-
-	// global $db;
-	// $extrafields = new ExtraFields($db);
-	// $extrafields->fetch_name_optionals_label('myobject');
+	global $db, $langs, $conf;
 
 	$langs->load("facturesituationmigration@facturesituationmigration");
 
 	$h = 0;
 	$head = array();
 
-	$head[$h][0] = dol_buildpath("/facturesituationmigration/admin/config.php", 1);
-	$head[$h][1] = $langs->trans("Config");
-	$head[$h][2] = 'config';
-	$h++;
 	$head[$h][0] = dol_buildpath("/facturesituationmigration/admin/setup.php", 1);
 	$head[$h][1] = $langs->trans("Settings");
 	$head[$h][2] = 'settings';
+	$h++;
+	$head[$h][0] = dol_buildpath("/facturesituationmigration/admin/migration.php", 1);
+	$head[$h][1] = $langs->trans("FactureSituationMigrationTabMigration");
+	$head[$h][2] = 'migration';
 	$h++;
 
 	/*
@@ -58,6 +54,17 @@ function facturesituationmigrationAdminPrepareHead()
 	$head[$h][2] = 'myobject_extrafields';
 	$h++;
 	*/
+
+	if (getDolGlobalInt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP') >= 3) {
+		dol_include_once('/facturesituationmigration/class/facturesituationmigration.class.php');
+		$migration_tmp = new FactureSituationMigration($db);
+		if ($migration_tmp->backupTablesExist()) {
+			$head[$h][0] = dol_buildpath("/facturesituationmigration/admin/verify.php", 1);
+			$head[$h][1] = $langs->trans("FactureSituationMigrationTabVerification");
+			$head[$h][2] = 'verify';
+			$h++;
+		}
+	}
 
 	$head[$h][0] = dol_buildpath("/facturesituationmigration/admin/about.php", 1);
 	$head[$h][1] = $langs->trans("About");

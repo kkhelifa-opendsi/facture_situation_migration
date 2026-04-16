@@ -20,44 +20,135 @@
 # Module label 'ModuleFactureSituationMigrationName'
 ModuleFactureSituationMigrationName = FactureSituationMigration
 # Module description 'ModuleFactureSituationMigrationDesc'
-ModuleFactureSituationMigrationDesc = FactureSituationMigration description
+ModuleFactureSituationMigrationDesc = Module pour migrer les facture de situation du mode 1 ou mode 2
 
 #
 # Admin page
 #
-FactureSituationMigrationSetup = FactureSituationMigration setup
-Settings = Settings
-FactureSituationMigrationSetupPage = Cette page permet de migrer les données des factures de situation de la table llx_facturedet. Il est vivement recommandé de ne pas créer de nouvelles factures durant le processus.<br> Il est également conseillé de mettre la constante MAIN_SECURITY_CSRF_TOKEN_RENEWAL_ON_EACH_CALL à 1 le temps de réaliser les manipulations.
-
-FactureSituationMigrationStep1Desc = Sauvegarde de la table llx_facturedet dans la table llx_facture_situation_migration_backup
-FactureSituationMigrationStep2Desc = Préparation d'une table (llx_facture_situation_migration) pour checker ce qui est fait ou non
-FactureSituationMigrationStep3Desc = Conversion des données de la table llx_facturedet
-FactureSituationMigrationStep4Desc = Rollback / Confirmation
-FactureSituationMigrationCyclesDone = Cycles de facture traités
-
-
-#
-# About page
-#
-About = About
-FactureSituationMigrationAbout = About FactureSituationMigration
-FactureSituationMigrationAboutPage = FactureSituationMigration about page
-
-#
-# Sample page
-#
-FactureSituationMigrationArea = Home FactureSituationMigration
-MyPageName = My page name
-
-#
-# Sample widget
-#
-MyWidget = My widget
-MyWidgetDescription = My widget description
-RetryAllIsNotDone = Quelques factures n'ont pas été migrées:
+FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
 FACTURESITUATIONMIGRATION_PERCENT_MORE_100_ERROR = Marquer comme erreur les lignes dont le pourcentage est > 100 pourcent durant la migration
 FACTURESITUATIONMIGRATION_PERCENT_MORE_100_FIX = "Corriger" les lignes > 100 pourcent en les forçant à 100 pourcent
 FACTURESITUATIONMIGRATION_PERCENT_LESS_0_ERROR = Marquer comme erreur les lignes dont le pourcentage est < 0 pourcent durant la migration
 FACTURESITUATIONMIGRATION_PERCENT_LESS_0_FIX = "Corriger" les lignes < 0 pourcent en les forçant à 0 pourcent
+FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Tolérance d'arrondi pour la page de vérification (par défaut 0.01)
+
+#
+# About page
+#
+About = Apropos
+FactureSituationMigrationAbout = Apropos de FactureSituationMigration
+
+#
+# Migration page
+#
+
+FactureSituationMigrationTabMigration = Migration
+FactureSituationMigrationMigration = Page de migration des factures de situation
+FactureSituationMigrationMigrationPage = Cette page permet de migrer les données des factures de situation de la table llx_facturedet. Il est vivement recommandé de ne pas créer de nouvelles factures durant le processus.<br> Il est également conseillé de mettre la constante MAIN_SECURITY_CSRF_TOKEN_RENEWAL_ON_EACH_CALL à 1 le temps de réaliser les manipulations.
+
+RetryAllIsNotDone = Quelques factures n'ont pas été migrées:
+FactureSituationMigrationStep1Desc = Sauvegarde de la table llx_facturedet dans la table llx_facture_situation_migration_backup
+FactureSituationMigrationStep1Done = Étape 1 terminée : tables de backup créées et données sauvegardées
+FactureSituationMigrationStep2Desc = Préparation d'une table (llx_facture_situation_migration) pour checker ce qui est fait ou non
+FactureSituationMigrationStep2Done = Étape 2 terminée : factures indexées dans la table de migration
+FactureSituationMigrationStep3Desc = Conversion des données de la table llx_facturedet
+FactureSituationMigrationStep3Done = Étape 3 terminée : toutes les factures de situation ont été migrées en mode delta
+FactureSituationMigrationStep3BatchDone = %s cycles migrés dans ce lot, %s restants à traiter
+FactureSituationMigrationStep4Desc = Rollback / Confirmation
+FactureSituationMigrationStep4RollbackDone = Rollback effectué : les données originales ont été restaurées et le mode 1 réactivé
+FactureSituationMigrationCyclesDone = Cycles de facture traités
+FactureSituationMigrationCyclesError = dont %s en erreurs
+
+#
+# Verification page
+#
+FactureSituationMigrationTabVerification=Vérification
+FactureSituationMigrationVerificationPage=Comparaison des données avant/après migration mode 1 vers mode 2
+FactureSituationMigrationNoBackupTables=Les tables de backup n'existent plus. La vérification n'est pas possible.
+FactureSituationMigrationCyclesVerified=%s cycles vérifiés
+FactureSituationMigrationCyclesOk=%s cycles OK
+FactureSituationMigrationCyclesWithErrors=%s cycles avec écarts
+FactureSituationMigrationCycle=Cycle
+FactureSituationMigrationCycleRef=Cycle n°%s
+FactureSituationMigrationNbInvoices=Nb factures
+FactureSituationMigrationBackupHT=HT backup (somme totaux)
+FactureSituationMigrationCurrentHT=HT actuel (somme totaux)
+FactureSituationMigrationDeviationHT=Écart HT
+FactureSituationMigrationBackupTTC=TTC backup
+FactureSituationMigrationCurrentTTC=TTC actuel
+FactureSituationMigrationDeviationTTC=Écart TTC
+FactureSituationMigrationStatus=Statut
+FactureSituationMigrationDetail=Détail
+FactureSituationMigrationFilterAll=Tous
+FactureSituationMigrationFilterOk=OK uniquement
+FactureSituationMigrationFilterErrors=Erreurs uniquement
+FactureSituationMigrationBackupValue=Valeur backup
+FactureSituationMigrationCurrentValue=Valeur actuelle
+FactureSituationMigrationExpectedDelta=Delta attendu
+FactureSituationMigrationDeviation=Écart
+FactureSituationMigrationCoherenceChecks=Contrôles de cohérence
+FactureSituationMigrationSumDeltasEqualsTotal=Somme des deltas = cumulatif final
+FactureSituationMigrationInvoiceTotalMatchesLines=Totaux facture = somme des lignes
+FactureSituationMigrationPrevIdChainIntact=Chaînage fk_prev_id intact
+FactureSituationMigrationFirstSituationUnchanged=Situations 1 non modifiées
+FactureSituationMigrationToleranceLabel=Tolérance
+FactureSituationMigrationToleranceNote=Tolérance d'arrondi : %s
+FactureSituationMigrationExportCSV=Exporter en CSV
+FactureSituationMigrationSituationNb=Situation n°%s
+FactureSituationMigrationLineId=Ligne #%s
+FactureSituationMigrationShowLines=Afficher les lignes
+FactureSituationMigrationHideLines=Masquer les lignes
+FactureSituationMigrationYear=Année
+FactureSituationMigrationAllYears=Toutes
+FactureSituationMigrationBackToList=Retour à la liste
+FactureSituationMigrationRecalculate=Recalculer les totaux factures
+FactureSituationMigrationRecalculateConfirm=Recalculer les totaux de toutes les factures de situation ? Cette opération corrige les totaux corrompus par un update_price en mode 1.
+FactureSituationMigrationRecalcDone=%s factures recalculées avec succès
+FactureSituationMigrationConfirmDone=Migration confirmée. Les données de backup de cette entité ont été nettoyées.
+
+#
+# Home
+#
+FactureSituationMigrationArea = Page d'accueil de FactureSituationMigration
+
+#
+# Errors
+#
+FactureSituationMigrationErrorAlreadyIntoMigrationWithOldVersion = Il y a déjà une migration en cours avec l'ancienne version du module dans les entités : %s<br>Veuillez revenir à une version antérieur de la base de données avant l'utilisation de l'ancienne version pour continuer.
+FactureSituationMigrationErrorStep1CreateBackupDet = Erreur lors de la création de la table de backup facturedet : %s
+FactureSituationMigrationErrorStep1CopyDet = Erreur lors de la copie des données facturedet vers la table de backup : %s
+FactureSituationMigrationErrorStep1CreateBackupFac = Erreur lors de la création de la table de backup facture : %s
+FactureSituationMigrationErrorStep1CopyFac = Erreur lors de la copie des données facture vers la table de backup : %s
+FactureSituationMigrationErrorStep2Select = Erreur SQL lors de la sélection des factures de situation : %s
+FactureSituationMigrationErrorStep2Insert = Erreur lors de l'insertion dans la table de migration : %s
+FactureSituationMigrationErrorGetSequencesSelect = Erreur SQL lors de la sélection des cycles à migrer : %s
+FactureSituationMigrationErrorGetSequencesLastInvoice = Erreur SQL lors de la récupération de la dernière facture du cycle : %s
+FactureSituationMigrationErrorStep3Select = Erreur SQL lors de la sélection des cycles à migrer : %s
+FactureSituationMigrationErrorStep3AllFailed = Tous les cycles ont échoué à la migration, aucune donnée n'a été convertie
+FactureSituationMigrationErrorStep3PrevCounterMissing = Cycle %s, facture %s (situation %s) : la situation précédente n°%s est manquante (trou dans la séquence). Le cycle a été annulé et marqué en erreur. Corrigez les données puis réinitialisez le statut à 0 pour réessayer.
+FactureSituationMigrationErrorStep3LinePercent = Cycle %s, facture %s (situation %s) : pourcentage invalide ou hors plage sur la ligne %s. Le cycle a été annulé et marqué en erreur. Vérifiez les options "PERCENT_MORE_100" / "PERCENT_LESS_0" puis réinitialisez le statut à 0 pour réessayer.
+FactureSituationMigrationErrorStep3PrevLineMissing = Cycle %s, facture %s (situation %s) : la ligne %s référence une ligne précédente (id=%s) introuvable dans la situation %s. Le cycle a été annulé et marqué en erreur. Vérifiez l'intégrité du chaînage fk_prev_id puis réinitialisez le statut à 0 pour réessayer.
+FactureSituationMigrationErrorStep3UpdateLine = Cycle %s, facture %s (situation %s) : échec SQL UPDATE sur la ligne %s : %s. Le cycle a été annulé et marqué en erreur. Réinitialisez le statut à 0 pour réessayer après correction.
+FactureSituationMigrationErrorStep3FetchCycle = Cycle %s : échec SQL lors de la récupération des détails du cycle : %s
+FactureSituationMigrationErrorStep3UnexpectedInconsistency = Cycle %s : incohérence inattendue à la fin du traitement, le cycle a été annulé. Consultez les logs pour plus de détails.
+FactureSituationMigrationErrorRollbackRestoreDet = Erreur lors de la restauration des lignes facturedet depuis le backup : %s
+FactureSituationMigrationErrorRollbackRestoreFac = Erreur lors de la restauration des totaux facture depuis le backup : %s
+FactureSituationMigrationErrorRollbackSetConst = Erreur lors de la réinitialisation de la constante %s
+FactureSituationMigrationErrorRollbackCleanMigration = Erreur lors du nettoyage de la table de migration : %s
+FactureSituationMigrationErrorRollbackCleanBackupDet = Erreur lors du nettoyage de la table de backup facturedet : %s
+FactureSituationMigrationErrorRollbackCleanBackupFac = Erreur lors du nettoyage de la table de backup facture : %s
+FactureSituationMigrationErrorConfirmCleanMigration = Erreur lors du nettoyage de la table de migration : %s
+FactureSituationMigrationErrorConfirmCleanBackupDet = Erreur lors du nettoyage des données de backup facturedet : %s
+FactureSituationMigrationErrorConfirmCleanBackupFac = Erreur lors du nettoyage des données de backup facture : %s
+
+#
+# Warnings
+#
+FactureSituationMigrationWarningStep1AlreadyDone = L'étape 1 a déjà été exécutée (migration déjà en cours)
+FactureSituationMigrationWarningStep2NoInvoices = Aucune facture de situation trouvée, aucune migration nécessaire
+FactureSituationMigrationWarningStep2NoCyclesCurrentYear = Aucun cycle à migrer pour l'année en cours (option "Année courante" activée)
+FactureSituationMigrationWarningStep2AlreadyIndexed = Toutes les factures sont déjà indexées, rien à ajouter
+FactureSituationMigrationWarningStep3NothingToDo = Tous les cycles sont déjà migrés, rien à faire
+FactureSituationMigrationWarningStep3PartialErrors = %s cycles sur %s ont rencontré des erreurs lors de la migration

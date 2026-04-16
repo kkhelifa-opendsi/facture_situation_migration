@@ -72,7 +72,7 @@ class modFactureSituationMigration extends DolibarrModules
 		$this->editor_url = 'https://progiseize.fr';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '0.3';
+		$this->version = '0.4';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -130,7 +130,7 @@ class modFactureSituationMigration extends DolibarrModules
 		$this->dirs = array("/facturesituationmigration/temp");
 
 		// Config pages. Put here list of php page, stored into facturesituationmigration/admin directory, to use to setup module.
-		$this->config_page_url = array("setup.php@facturesituationmigration");
+		$this->config_page_url = array("migration.php@facturesituationmigration");
 
 		// Dependencies
 		// A condition to hide module
@@ -145,7 +145,7 @@ class modFactureSituationMigration extends DolibarrModules
 
 		// Prerequisites
 		$this->phpmin = array(7, 0); // Minimum version of PHP required by module
-		$this->need_dolibarr_version = array(11, -3); // Minimum version of Dolibarr required by module
+		$this->need_dolibarr_version = array(22, -3); // Minimum version of Dolibarr required by module
 
 		// Messages at activation
 		$this->warnings_activation = array(); // Warning to show when we activate module. array('always'='text') or array('FR'='textfr','MX'='textmx'...)
@@ -430,11 +430,52 @@ class modFactureSituationMigration extends DolibarrModules
 	public function init($options = '')
 	{
 		global $conf, $langs;
+		$langs->load("facturesituationmigration@facturesituationmigration");
+
+		// Check if already into a migration in any entities with the older version
+		$isNewVersion = false;
+		$sql = "SELECT COUNT(*) AS nb";
+		$sql .= " FROM " . $this->db->prefix() . "const";
+		$sql .= " WHERE name = " . $this->db->encrypt('FACTURESITUATIONMIGRATION_VERSION');
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($obj = $this->db->fetch_object($resql)) {
+				$isNewVersion = ((int) $obj->nb) > 0;
+			}
+			$this->db->free($resql);
+		} else {
+			$this->error = $this->db->lasterror();
+			return 0;
+		}
+		if (!$isNewVersion) {
+			$sql = "SELECT " . $this->db->decrypt('value') . " AS value, entity";
+			$sql .= " FROM " . $this->db->prefix() . "const";
+			$sql .= " WHERE name = " . $this->db->encrypt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
+			$resql = $this->db->query($sql);
+			if ($resql) {
+				$into_migration = [];
+				while ($obj = $this->db->fetch_object($resql)) {
+					$value = dolDecrypt($obj->value);
+					$entity = $obj->entity;
+					if (((int) $value) > 0) {
+						$into_migration[$entity] = $entity;
+					}
+				}
+				$this->db->free($resql);
+				if (!empty($into_migration)) {
+					$this->error = $langs->trans('FactureSituationMigrationErrorAlreadyIntoMigrationWithOldVersion', implode(', ', $into_migration));
+					return 0;
+				}
+			} else {
+				$this->error = $this->db->lasterror();
+				return 0;
+			}
+		}
 
 		//$result = $this->_load_tables('/install/mysql/', 'facturesituationmigration');
 		$result = $this->_load_tables('/facturesituationmigration/sql/');
-		if ($result < 0) {
-			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
+		if ($result <= 0) {
+			return 0; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
 		}
 
 		// Create extrafields during init
@@ -485,7 +526,12 @@ class modFactureSituationMigration extends DolibarrModules
 			}
 		}
 
-		return $this->_init($sql, $options);
+		$result = $this->_init($sql, $options);
+		if ($result > 0) {
+			dolibarr_set_const($this->db, 'FACTURESITUATIONMIGRATION_VERSION', $this->version, 'chaine', 0, '', $conf->entity);
+		}
+
+		return $result;
 	}
 
 	/**
