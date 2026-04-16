@@ -86,9 +86,10 @@ FactureSituationMigrationFilterOk=OK uniquement
 FactureSituationMigrationFilterErrors=Erreurs uniquement
 FactureSituationMigrationBackupValue=Valeur backup
 FactureSituationMigrationCurrentValue=Valeur actuelle
-FactureSituationMigrationExpectedDelta=Delta attendu
+FactureSituationMigrationExpectedDelta=Valeur attendue
 FactureSituationMigrationDeviation=Écart
 FactureSituationMigrationCoherenceChecks=Contrôles de cohérence
+FactureSituationMigrationInvoiceTotalsMatchBackup=Totaux facture = totaux backup
 FactureSituationMigrationSumDeltasEqualsTotal=Somme des deltas = cumulatif final
 FactureSituationMigrationInvoiceTotalMatchesLines=Totaux facture = somme des lignes
 FactureSituationMigrationPrevIdChainIntact=Chaînage fk_prev_id intact
@@ -129,6 +130,10 @@ FactureSituationMigrationErrorStep3Select = Erreur SQL lors de la sélection des
 FactureSituationMigrationErrorStep3AllFailed = Tous les cycles ont échoué à la migration, aucune donnée n'a été convertie
 FactureSituationMigrationErrorStep3PrevCounterMissing = Cycle %s, facture %s (situation %s) : la situation précédente n°%s est manquante (trou dans la séquence). Le cycle a été annulé et marqué en erreur. Corrigez les données puis réinitialisez le statut à 0 pour réessayer.
 FactureSituationMigrationErrorStep3LinePercent = Cycle %s, facture %s (situation %s) : pourcentage invalide ou hors plage sur la ligne %s. Le cycle a été annulé et marqué en erreur. Vérifiez les options "PERCENT_MORE_100" / "PERCENT_LESS_0" puis réinitialisez le statut à 0 pour réessayer.
+FactureSituationMigrationErrorSetFactureStatus = Facture %s : impossible de mettre à jour le statut dans la table de migration : %s
+FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, facture %s : impossible de charger la facture pour recalculer les totaux
+FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, facture %s : échec du recalcul des totaux (update_price) : %s
+FactureSituationMigrationErrorStep3SetChecked = Cycle %s : impossible d'enregistrer le résultat de vérification dans la table de migration : %s
 FactureSituationMigrationErrorStep3PrevLineMissing = Cycle %s, facture %s (situation %s) : la ligne %s référence une ligne précédente (id=%s) introuvable dans la situation %s. Le cycle a été annulé et marqué en erreur. Vérifiez l'intégrité du chaînage fk_prev_id puis réinitialisez le statut à 0 pour réessayer.
 FactureSituationMigrationErrorStep3UpdateLine = Cycle %s, facture %s (situation %s) : échec SQL UPDATE sur la ligne %s : %s. Le cycle a été annulé et marqué en erreur. Réinitialisez le statut à 0 pour réessayer après correction.
 FactureSituationMigrationErrorStep3FetchCycle = Cycle %s : échec SQL lors de la récupération des détails du cycle : %s
@@ -139,6 +144,8 @@ FactureSituationMigrationErrorRollbackSetConst = Erreur lors de la réinitialisa
 FactureSituationMigrationErrorRollbackCleanMigration = Erreur lors du nettoyage de la table de migration : %s
 FactureSituationMigrationErrorRollbackCleanBackupDet = Erreur lors du nettoyage de la table de backup facturedet : %s
 FactureSituationMigrationErrorRollbackCleanBackupFac = Erreur lors du nettoyage de la table de backup facture : %s
+FactureSituationMigrationErrorDetailInvoicesQuery = Cycle %s : erreur SQL lors du chargement des factures pour la vérification : %s
+FactureSituationMigrationErrorDetailLinesQuery = Cycle %s : erreur SQL lors du chargement des lignes pour la vérification : %s
 FactureSituationMigrationErrorConfirmCleanMigration = Erreur lors du nettoyage de la table de migration : %s
 FactureSituationMigrationErrorConfirmCleanBackupDet = Erreur lors du nettoyage des données de backup facturedet : %s
 FactureSituationMigrationErrorConfirmCleanBackupFac = Erreur lors du nettoyage des données de backup facture : %s

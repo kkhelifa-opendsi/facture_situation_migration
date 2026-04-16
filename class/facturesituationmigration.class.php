@@ -94,19 +94,40 @@ class FactureSituationMigration
 	}
 
 	/**
+	 * Return an HTML badge span: green (status4) if test is true, red (status8) otherwise.
+	 *
+	 * @param  bool   $test      Condition to evaluate
+	 * @param  string $value_ok  Label displayed when test is true
+	 * @param  string $value_nok Label displayed when test is false
+	 * @return string            HTML span with badge class
+	 */
+	public static function badgeStatus($test, $value_ok, $value_nok)
+	{
+		if ($test) {
+			return '<span class="badge badge-status4">'.$value_ok.'</span>';
+		}
+		return '<span class="badge badge-status8">'.$value_nok.'</span>';
+	}
+
+	/**
 	 * Set done field to -1 to flag migration errors on a specific invoice.
 	 *
 	 * @param  int  $facture_id  Invoice rowid (used as PK in migration table)
-	 * @return int               1 on success, 0 on SQL error
+	 * @return int               1 on success, -1 on SQL error
 	 */
 	public function setFactureError($facture_id)
 	{
-		$sql = "UPDATE " . MAIN_DB_PREFIX . $this->table_migration;
-		$sql .= " SET done = -1 ";
-		$sql .= " WHERE rowid = " . ((int) $facture_id);
+		global $langs;
+		$langs->load('facturesituationmigration@facturesituationmigration');
+
+		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql .= " SET done = -1";
+		$sql .= " WHERE rowid = ".((int) $facture_id);
 		$res = $this->db->query($sql);
 		if (!$res) {
-			return 0;
+			$this->error = $langs->trans('FactureSituationMigrationErrorSetFactureStatus', $facture_id, $this->db->lasterror());
+			dol_syslog('setFactureError SQL error for facture_id='.$facture_id.': '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
+			return -1;
 		}
 		return 1;
 	}
@@ -115,17 +136,21 @@ class FactureSituationMigration
 	 * Set done field to 1 to mark an invoice as successfully migrated.
 	 *
 	 * @param  int  $facture_id  Invoice rowid (used as PK in migration table)
-	 * @return int               1 on success, 0 on SQL error
+	 * @return int               1 on success, -1 on SQL error
 	 */
 	public function setFactureDone($facture_id)
 	{
-		$sql = "UPDATE " . MAIN_DB_PREFIX . $this->table_migration;
-		$sql .= " SET done = 1 ";
-		$sql .= " WHERE rowid = " . ((int) $facture_id);
-		$res = $this->db->query($sql);
+		global $langs;
+		$langs->load('facturesituationmigration@facturesituationmigration');
 
+		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql .= " SET done = 1";
+		$sql .= " WHERE rowid = ".((int) $facture_id);
+		$res = $this->db->query($sql);
 		if (!$res) {
-			return 0;
+			$this->error = $langs->trans('FactureSituationMigrationErrorSetFactureStatus', $facture_id, $this->db->lasterror());
+			dol_syslog('setFactureDone SQL error for facture_id='.$facture_id.': '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
+			return -1;
 		}
 		return 1;
 	}
@@ -633,7 +658,9 @@ class FactureSituationMigration
 							$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3PrevCounterMissing', $obj->situation_cycle_ref, $cycle_infos['facture_ref'], $cycle_counter, $cycle_counter_before);
 							// setFactureError() runs outside the rolled-back transaction so the
 							// failure flag is persisted (used by the NOT EXISTS guard in the next batch).
-							$this->setFactureError($cycle_infos['facture_id']);
+							if ($this->setFactureError($cycle_infos['facture_id']) < 0) {
+								$listOfErrors[] = $this->error;
+							}
 							$nb_update_error++;
 							continue 2;
 						}
@@ -661,7 +688,9 @@ class FactureSituationMigration
 								dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' Invoice::' . $cycle_infos['facture_ref'] . ' (id=' . $cycle_infos['facture_id'] . ', situation_counter=' . $cycle_counter . ') ERROR on line=' . $line_id . ': previous line id=' . $fk_prev_id . ' not found in situation_counter=' . $cycle_counter_before . '. Cycle rolled back and marked in error.', LOG_ERR, 0, '_situationmigration');
 								$this->db->rollback();
 								$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3PrevLineMissing', $obj->situation_cycle_ref, $cycle_infos['facture_ref'], $cycle_counter, $line_id, $fk_prev_id, $cycle_counter_before);
-								$this->setFactureError($cycle_infos['facture_id']);
+								if ($this->setFactureError($cycle_infos['facture_id']) < 0) {
+									$listOfErrors[] = $this->error;
+								}
 								$nb_update_error++;
 								continue 3;
 							}
@@ -695,7 +724,9 @@ class FactureSituationMigration
 								$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3LinePercent', $obj->situation_cycle_ref, $cycle_infos['facture_ref'], $cycle_counter, $line_id);
 								// setFactureError() runs outside the rolled-back transaction so the
 								// failure flag is persisted (used by the NOT EXISTS guard in the next batch).
-								$this->setFactureError($cycle_infos['facture_id']);
+								if ($this->setFactureError($cycle_infos['facture_id']) < 0) {
+									$listOfErrors[] = $this->error;
+								}
 								$nb_update_error++;
 								continue 3;
 							}
@@ -750,39 +781,88 @@ class FactureSituationMigration
 								dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' Invoice::' . $cycle_infos['facture_ref'] . ' (id=' . $cycle_infos['facture_id'] . ', situation_counter=' . $cycle_counter . ') SQL UPDATE failed for line=' . $line_id . ': ' . $this->db->lasterror() . ' sql=' . $sql_update . '. Cycle rolled back and marked in error.', LOG_ERR, 0, '_situationmigration');
 								$this->db->rollback();
 								$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3UpdateLine', $obj->situation_cycle_ref, $cycle_infos['facture_ref'], $cycle_counter, $line_id, $this->db->lasterror());
-								$this->setFactureError($cycle_infos['facture_id']);
+								if ($this->setFactureError($cycle_infos['facture_id']) < 0) {
+									$listOfErrors[] = $this->error;
+								}
 								$nb_update_error++;
 								continue 3;
 							}
 						}
 
 						if ($factureline_update == $factureline_update_success) {
-							$facture_update_success++;
-							$this->setFactureDone($cycle_infos['facture_id']);
+							if ($this->setFactureDone($cycle_infos['facture_id']) < 0) {
+								$listOfErrors[] = $this->error;
+								$facture_update_error++;
+							} else {
+								$facture_update_success++;
+							}
 						} else {
 							$facture_update_error++;
 						}
-						//var_dump('----- NB line: '.$factureline_update.' :: Success: '.$factureline_update_success.' | Err: '.$factureline_update_error);
 					} else {
 						dol_syslog('We do nothing, first situation', LOG_DEBUG, 0, '_situationmigration');
-						$facture_update_success++;
-						$this->setFactureDone($cycle_infos['facture_id']);
+						if ($this->setFactureDone($cycle_infos['facture_id']) < 0) {
+							$listOfErrors[] = $this->error;
+							$facture_update_error++;
+						} else {
+							$facture_update_success++;
+						}
 						// foreach($cycle_infos['lines'] as $lid => $l) { var_dump('-------- LIGNE ID:'.$lid.' ||  HT:'.$l['ligne_total_ht'].'€ || '.$l['line_percent'].'%'); }
 					}
 				}
 				//var_dump('NB fact cycle: '.$facture_update.' :: Success: '.$facture_update_success.' | Err: '.$facture_update_error);
 
 				if ($facture_update == $facture_update_success) {
-					$nb_update_success++;
-					$this->db->commit();
+					// All still inside the transaction (begin was called before the cycle loop).
+					// Dolibarr handles nested begin/commit via a counter, so internal
+					// begin/commit calls in update_price() are no-ops at this nesting level.
+					$cycle_error = false;
+
 					// Recalcul des totaux facture après migration des lignes en delta
 					// INVOICE_USE_SITUATION=2 is already set at the start of step 3
 					foreach ($cycle_array as $cycle_infos_upd) {
 						$facture_tmp = new Facture($this->db);
-						if ($facture_tmp->fetch($cycle_infos_upd['facture_id']) > 0) {
-							$facture_tmp->update_price(1);
-							dol_syslog('update_price done for invoice ' . $cycle_infos_upd['facture_ref'], LOG_DEBUG, 0, '_situationmigration');
+						$res_fetch = $facture_tmp->fetch($cycle_infos_upd['facture_id']);
+						if ($res_fetch <= 0) {
+							dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' Invoice::' . $cycle_infos_upd['facture_ref'] . ' (id=' . $cycle_infos_upd['facture_id'] . ') fetch failed (result=' . $res_fetch . ')', LOG_ERR, 0, '_situationmigration');
+							$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3FetchInvoice', $obj->situation_cycle_ref, $cycle_infos_upd['facture_ref']);
+							$cycle_error = true;
+							break;
 						}
+						$res_price = $facture_tmp->update_price(1);
+						if ($res_price < 0) {
+							dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' Invoice::' . $cycle_infos_upd['facture_ref'] . ' update_price failed (result=' . $res_price . '): ' . $facture_tmp->error, LOG_ERR, 0, '_situationmigration');
+							$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3UpdatePrice', $obj->situation_cycle_ref, $cycle_infos_upd['facture_ref'], $facture_tmp->error);
+							$cycle_error = true;
+							break;
+						}
+						dol_syslog('update_price done for invoice ' . $cycle_infos_upd['facture_ref'], LOG_DEBUG, 0, '_situationmigration');
+					}
+
+					// Post-migration verification + store result (still in transaction)
+					$verify = $this->verifyCycle((int) $obj->situation_cycle_ref);
+					if ($verify === false) {
+						// SQL error during verification
+						dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' post-migration verification SQL error: ' . $this->error, LOG_ERR, 0, '_situationmigration');
+						$listOfErrors[] = $this->error;
+						$cycle_error = true;
+					} else {
+						$check_val = $verify['ok'] ? 1 : -1;
+						$res_check = $this->setCycleChecked((int) $obj->situation_cycle_ref, $check_val);
+						if ($res_check < 0) {
+							dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' setCycleChecked SQL error: ' . $this->db->lasterror(), LOG_ERR, 0, '_situationmigration');
+							$listOfErrors[] = $langs->trans('FactureSituationMigrationErrorStep3SetChecked', $obj->situation_cycle_ref, $this->db->lasterror());
+							$cycle_error = true;
+						}
+						dol_syslog('Cycle::' . $obj->situation_cycle_ref . ' post-migration verification: ' . ($verify['ok'] ? 'OK' : 'FAILED'), ($verify['ok'] ? LOG_DEBUG : LOG_WARNING), 0, '_situationmigration');
+					}
+
+					if ($cycle_error) {
+						$this->db->rollback();
+						$nb_update_error++;
+					} else {
+						$this->db->commit();
+						$nb_update_success++;
 					}
 				} else {
 					// Defensive fallback: with the immediate-rollback handling above this branch
@@ -1259,33 +1339,29 @@ class FactureSituationMigration
 		}
 		$sortorder = (strtoupper($sortorder) == 'DESC') ? 'DESC' : 'ASC';
 
-		// In mode 1, backup facture.total_ht was already a delta (update_price subtracted
-		// previous invoices). After migration to mode 2, current facture.total_ht should
-		// also be the same delta (sum of delta lines). We compare SUM of backup facture
-		// totals with SUM of current facture totals per cycle, for common invoices only.
+		// Cycle status comes from the pre-computed `checked` column in the
+		// migration table (set by verifyCycle() after step 3). MIN(m.checked)
+		// gives the cycle-level status: 1=OK, -1=error, 0=not checked.
+		// We still compute ecart_ht/ecart_ttc for informational display.
 
-		// SQL fragments shared by the 3 queries
 		$ecart_ht_sql = '(SUM(f.total_ht) - SUM(bk.total_ht))';
 		$ecart_ttc_sql = '(SUM(f.total_ttc) - SUM(bk.total_ttc))';
-		$status_ok_expr = $this->db->ifsql(
-			'ABS('.$ecart_ht_sql.') <= '.$tolerance.' AND ABS('.$ecart_ttc_sql.') <= '.$tolerance,
-			'1', '0'
-		);
 
 		$from_where = " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
 		$from_where .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
+		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON m.rowid = bk.rowid";
 		$from_where .= " WHERE COALESCE(bk.situation_cycle_ref, 0) > 0";
 		$from_where .= " AND bk.entity IN (".$entityList.")";
 
-		// HAVING clause for filters applied after aggregation (year + status)
+		// HAVING clause for filters applied after aggregation
 		$having = '';
 		if ($search_year > 0) {
 			$having .= " AND MAX(EXTRACT(YEAR FROM bk.datef)) = ".$search_year;
 		}
 		if ($search_status == 'ok') {
-			$having .= " AND ABS(".$ecart_ht_sql.") <= ".$tolerance." AND ABS(".$ecart_ttc_sql.") <= ".$tolerance;
+			$having .= " AND MIN(COALESCE(m.checked, 0)) = 1";
 		} elseif ($search_status == 'error') {
-			$having .= " AND (ABS(".$ecart_ht_sql.") > ".$tolerance." OR ABS(".$ecart_ttc_sql.") > ".$tolerance.")";
+			$having .= " AND MIN(COALESCE(m.checked, 0)) != 1";
 		}
 		if ($having != '') {
 			$having = ' HAVING 1=1'.$having;
@@ -1293,12 +1369,13 @@ class FactureSituationMigration
 
 		// --------------------------------------------------------------------
 		// Query 1: global stats (nb_ok, nb_error) - NO filter applied
+		// Uses MIN(checked) per cycle: 1 = OK, anything else = error/not checked
 		// --------------------------------------------------------------------
 		$sql_stats = "SELECT";
-		$sql_stats .= " SUM(".$this->db->ifsql('status_ok = 1', '1', '0').") as nb_ok,";
-		$sql_stats .= " SUM(".$this->db->ifsql('status_ok = 0', '1', '0').") as nb_error";
+		$sql_stats .= " SUM(".$this->db->ifsql('cycle_check = 1', '1', '0').") as nb_ok,";
+		$sql_stats .= " SUM(".$this->db->ifsql('cycle_check != 1', '1', '0').") as nb_error";
 		$sql_stats .= " FROM (";
-		$sql_stats .= " SELECT ".$status_ok_expr." as status_ok";
+		$sql_stats .= " SELECT MIN(COALESCE(m.checked, 0)) as cycle_check";
 		$sql_stats .= $from_where;
 		$sql_stats .= " GROUP BY bk.situation_cycle_ref";
 		$sql_stats .= " ) as sub_stats";
@@ -1357,7 +1434,7 @@ class FactureSituationMigration
 		$sql_page .= " ROUND(".$ecart_ttc_sql.", 2) as ecart_ttc,";
 		$sql_page .= " COUNT(*) as nb_factures,";
 		$sql_page .= " MAX(EXTRACT(YEAR FROM bk.datef)) as year,";
-		$sql_page .= " ".$status_ok_expr." as status_ok";
+		$sql_page .= " MIN(COALESCE(m.checked, 0)) as status_ok";
 		$sql_page .= $from_where;
 		$sql_page .= " GROUP BY bk.situation_cycle_ref";
 		$sql_page .= $having;
@@ -1369,15 +1446,19 @@ class FactureSituationMigration
 		$resql = $this->db->query($sql_page);
 		if ($resql) {
 			while ($obj = $this->db->fetch_object($resql)) {
+				$ecart_ht = (float) $obj->ecart_ht;
+				$ecart_ttc = (float) $obj->ecart_ttc;
 				$result['cycles'][] = array(
 					'cycle_ref' => (int) $obj->cycle_ref,
 					'nb_factures' => (int) $obj->nb_factures,
 					'backup_ht' => (float) $obj->backup_ht,
 					'current_ht' => (float) $obj->current_ht,
-					'ecart_ht' => (float) $obj->ecart_ht,
+					'ecart_ht' => $ecart_ht,
+					'ecart_ht_ok' => (abs($ecart_ht) <= $tolerance),
 					'backup_ttc' => (float) $obj->backup_ttc,
 					'current_ttc' => (float) $obj->current_ttc,
-					'ecart_ttc' => (float) $obj->ecart_ttc,
+					'ecart_ttc' => $ecart_ttc,
+					'ecart_ttc_ok' => (abs($ecart_ttc) <= $tolerance),
 					'year' => (int) $obj->year,
 					'status_ok' => ((int) $obj->status_ok == 1),
 				);
@@ -1394,11 +1475,16 @@ class FactureSituationMigration
 	/**
 	 * Get detailed comparison for a specific cycle (invoices and lines).
 	 *
-	 * @param  int    $cycle_ref  Situation cycle reference
-	 * @return array              Array keyed by situation_counter with invoice and line comparison data
+	 * On SQL error, $this->error is populated and the method returns false.
+	 *
+	 * @param  int         $cycle_ref  Situation cycle reference
+	 * @return array|false             Array keyed by situation_counter, or false on SQL error
 	 */
 	public function getVerificationCycleDetail($cycle_ref)
 	{
+		global $langs;
+		$langs->load('facturesituationmigration@facturesituationmigration');
+
 		$entityList = getEntity('facture');
 		$detail = array();
 
@@ -1417,8 +1503,12 @@ class FactureSituationMigration
 		$sql .= " ORDER BY f.situation_counter ASC";
 
 		$resql = $this->db->query($sql);
-		if ($resql) {
-			while ($obj = $this->db->fetch_object($resql)) {
+		if (!$resql) {
+			dol_syslog('getVerificationCycleDetail: SQL error on invoices query: '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
+			$this->error = $langs->trans('FactureSituationMigrationErrorDetailInvoicesQuery', $cycle_ref, $this->db->lasterror());
+			return false;
+		}
+		while ($obj = $this->db->fetch_object($resql)) {
 				$counter = (int) $obj->situation_counter;
 				$detail[$counter] = array(
 					'facture_id' => (int) $obj->facture_id,
@@ -1448,9 +1538,8 @@ class FactureSituationMigration
 					),
 					'lines' => array(),
 				);
-			}
-			$this->db->free($resql);
 		}
+		$this->db->free($resql);
 
 		// Lines: current vs backup
 		$sql_lines = "SELECT fd.rowid as line_id, fd.label, fd.description, fd.fk_prev_id,";
@@ -1472,43 +1561,46 @@ class FactureSituationMigration
 		$sql_lines .= " ORDER BY f.situation_counter ASC, fd.rowid ASC";
 
 		$resql = $this->db->query($sql_lines);
-		if ($resql) {
-			while ($obj = $this->db->fetch_object($resql)) {
-				$counter = (int) $obj->situation_counter;
-				if (!isset($detail[$counter])) {
-					continue;
-				}
-				$detail[$counter]['lines'][$obj->line_id] = array(
-					'line_id' => (int) $obj->line_id,
-					'label' => $obj->label,
-					'description' => $obj->description,
-					'fk_prev_id' => (int) $obj->fk_prev_id,
-					'current' => array(
-						'situation_percent' => (float) $obj->situation_percent,
-						'total_ht' => (float) $obj->total_ht,
-						'total_tva' => (float) $obj->total_tva,
-						'total_ttc' => (float) $obj->total_ttc,
-						'total_localtax1' => (float) $obj->total_localtax1,
-						'total_localtax2' => (float) $obj->total_localtax2,
-						'multicurrency_total_ht' => (float) $obj->multicurrency_total_ht,
-						'multicurrency_total_tva' => (float) $obj->multicurrency_total_tva,
-						'multicurrency_total_ttc' => (float) $obj->multicurrency_total_ttc,
-					),
-					'backup' => array(
-						'situation_percent' => (float) $obj->bk_percent,
-						'total_ht' => (float) $obj->bk_ht,
-						'total_tva' => (float) $obj->bk_tva,
-						'total_ttc' => (float) $obj->bk_ttc,
-						'total_localtax1' => (float) $obj->bk_localtax1,
-						'total_localtax2' => (float) $obj->bk_localtax2,
-						'multicurrency_total_ht' => (float) $obj->bk_multi_ht,
-						'multicurrency_total_tva' => (float) $obj->bk_multi_tva,
-						'multicurrency_total_ttc' => (float) $obj->bk_multi_ttc,
-					),
-				);
-			}
-			$this->db->free($resql);
+		if (!$resql) {
+			dol_syslog('getVerificationCycleDetail: SQL error on lines query: '.$this->db->lasterror().' sql='.$sql_lines, LOG_ERR, 0, '_situationmigration');
+			$this->error = $langs->trans('FactureSituationMigrationErrorDetailLinesQuery', $cycle_ref, $this->db->lasterror());
+			return false;
 		}
+		while ($obj = $this->db->fetch_object($resql)) {
+			$counter = (int) $obj->situation_counter;
+			if (!isset($detail[$counter])) {
+				continue;
+			}
+			$detail[$counter]['lines'][$obj->line_id] = array(
+				'line_id' => (int) $obj->line_id,
+				'label' => $obj->label,
+				'description' => $obj->description,
+				'fk_prev_id' => (int) $obj->fk_prev_id,
+				'current' => array(
+					'situation_percent' => (float) $obj->situation_percent,
+					'total_ht' => (float) $obj->total_ht,
+					'total_tva' => (float) $obj->total_tva,
+					'total_ttc' => (float) $obj->total_ttc,
+					'total_localtax1' => (float) $obj->total_localtax1,
+					'total_localtax2' => (float) $obj->total_localtax2,
+					'multicurrency_total_ht' => (float) $obj->multicurrency_total_ht,
+					'multicurrency_total_tva' => (float) $obj->multicurrency_total_tva,
+					'multicurrency_total_ttc' => (float) $obj->multicurrency_total_ttc,
+				),
+				'backup' => array(
+					'situation_percent' => (float) $obj->bk_percent,
+					'total_ht' => (float) $obj->bk_ht,
+					'total_tva' => (float) $obj->bk_tva,
+					'total_ttc' => (float) $obj->bk_ttc,
+					'total_localtax1' => (float) $obj->bk_localtax1,
+					'total_localtax2' => (float) $obj->bk_localtax2,
+					'multicurrency_total_ht' => (float) $obj->bk_multi_ht,
+					'multicurrency_total_tva' => (float) $obj->bk_multi_tva,
+					'multicurrency_total_ttc' => (float) $obj->bk_multi_ttc,
+				),
+			);
+		}
+		$this->db->free($resql);
 
 		// Compute expected deltas for each situation > 1
 		$counters = array_keys($detail);
@@ -1567,12 +1659,23 @@ class FactureSituationMigration
 	 * 4. Situation 1 lines unchanged (backup == current)
 	 *
 	 * @param  int    $cycle_ref  Situation cycle reference
+	 * @param  float  $tolerance  Rounding tolerance (default from constant or 0.01)
+	 * @param  array  $detail     Pre-loaded detail from getVerificationCycleDetail() (null = auto-load)
 	 * @return array              Array of check results
 	 */
-	public function getCoherenceChecks($cycle_ref)
+	public function getCoherenceChecks($cycle_ref, $tolerance = -1, $detail = null)
 	{
-		$tolerance = 0.01;
-		$detail = $this->getVerificationCycleDetail($cycle_ref);
+		if ($tolerance < 0) {
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+		}
+		if ($detail === null) {
+			$detail = $this->getVerificationCycleDetail($cycle_ref);
+		}
+		if ($detail === false) {
+			return array(
+				array('label' => 'LoadDetail', 'ok' => false, 'details' => $this->error),
+			);
+		}
 		$checks = array();
 		$counters = array_keys($detail);
 		sort($counters);
@@ -1677,5 +1780,121 @@ class FactureSituationMigration
 		);
 
 		return $checks;
+	}
+
+	/**
+	 * Full verification of a cycle: load detail, check per-facture ecarts,
+	 * and run the 4 coherence checks.
+	 *
+	 * This is the shared entry point used both by migration step 3 (post-migration
+	 * validation) and by the verification detail page. Factorizes all test logic
+	 * so both code paths run the exact same checks.
+	 *
+	 * @param  int          $cycle_ref  Situation cycle reference
+	 * @param  float        $tolerance  Rounding tolerance (default from constant or 0.01)
+	 * @return array|false              array('ok' => bool, 'detail' => array, 'checks' => array), or false on SQL error ($this->error is set)
+	 */
+	public function verifyCycle($cycle_ref, $tolerance = -1)
+	{
+		if ($tolerance < 0) {
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+		}
+
+		$all_ok = true;
+
+		// Load all detail data once (invoices + lines, backup vs current)
+		$detail = $this->getVerificationCycleDetail($cycle_ref);
+		if ($detail === false) {
+			// SQL error — $this->error is already set by getVerificationCycleDetail
+			return false;
+		}
+
+		// Per-facture ecart check (backup total vs current total)
+		// Enriches $detail with computed ecart values and flags for the view layer.
+		$check_fac_ok = true;
+		$check_fac_details = '';
+		foreach ($detail as $counter => &$info) {
+			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
+			$ecart_ht = round($info['current']['total_ht'] - $expected['total_ht'], 2);
+			$ecart_ttc = round($info['current']['total_ttc'] - $expected['total_ttc'], 2);
+			$ecart_ht_ok = (abs($ecart_ht) <= $tolerance);
+			$ecart_ttc_ok = (abs($ecart_ttc) <= $tolerance);
+			$row_ok = ($ecart_ht_ok && $ecart_ttc_ok);
+
+			$info['ecart_ht'] = $ecart_ht;
+			$info['ecart_ttc'] = $ecart_ttc;
+			$info['ecart_ht_ok'] = $ecart_ht_ok;
+			$info['ecart_ttc_ok'] = $ecart_ttc_ok;
+
+			// Per-line ecart flags
+			foreach ($info['lines'] as $line_id => &$line) {
+				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
+				$ecart_pct = round($line['current']['situation_percent'] - $line_expected['situation_percent'], 2);
+				$ecart_line_ht = round($line['current']['total_ht'] - $line_expected['total_ht'], 2);
+
+				$line['ecart_pct'] = $ecart_pct;
+				$line['ecart_ht'] = $ecart_line_ht;
+				$line['ecart_pct_ok'] = (abs($ecart_pct) <= $tolerance);
+				$line['ecart_ht_ok'] = (abs($ecart_line_ht) <= $tolerance);
+				$line['line_ok'] = ($line['ecart_pct_ok'] && $line['ecart_ht_ok']);
+
+				if (!$line['line_ok']) {
+					$row_ok = false;
+				}
+			}
+			unset($line);
+
+			$info['row_ok'] = $row_ok;
+
+			if (!$row_ok) {
+				$check_fac_ok = false;
+				$check_fac_details .= $info['ref'].' (sit '.$counter.'): ecart_ht='.$ecart_ht.', ecart_ttc='.$ecart_ttc.'. ';
+			}
+		}
+		unset($info);
+		if (!$check_fac_ok) {
+			$all_ok = false;
+		}
+
+		// 4 coherence checks (reuse the already-loaded detail)
+		$coherence_checks = $this->getCoherenceChecks($cycle_ref, $tolerance, $detail);
+		foreach ($coherence_checks as $check) {
+			if (!$check['ok']) {
+				$all_ok = false;
+			}
+		}
+
+		// Assemble: facture ecart check first, then the 4 coherence checks
+		$checks = array();
+		$checks[] = array(
+			'label' => 'InvoiceTotalsMatchBackup',
+			'ok' => $check_fac_ok,
+			'details' => $check_fac_ok ? '' : $check_fac_details,
+		);
+		$checks = array_merge($checks, $coherence_checks);
+
+		return array('ok' => $all_ok, 'detail' => $detail, 'checks' => $checks);
+	}
+
+	/**
+	 * Set the checked flag on all invoices of a cycle in the migration table.
+	 *
+	 * @param  int  $cycle_ref   Situation cycle reference
+	 * @param  int  $check_value 1=OK, -1=error, 0=not checked
+	 * @return int               Number of rows updated, or -1 on SQL error
+	 */
+	public function setCycleChecked($cycle_ref, $check_value)
+	{
+		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql .= " SET checked = ".((int) $check_value);
+		$sql .= " WHERE situation_cycle_ref = ".((int) $cycle_ref);
+		$sql .= " AND entity IN (".getEntity('facture').")";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog('setCycleChecked error: '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
+			return -1;
+		}
+		return $this->db->affected_rows($resql);
 	}
 }

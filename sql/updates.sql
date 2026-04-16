@@ -15,11 +15,4 @@
 -- along with this program.  If not, see <https://www.gnu.org/licenses/agpl-3.0.html>.
 
 
-CREATE TABLE IF NOT EXISTS llx_facture_situation_migration(
-  rowid int NOT NULL AUTO_INCREMENT,
-  situation_cycle_ref int DEFAULT NULL,
-  entity int NOT NULL DEFAULT 1,
-  done tinyint(1) NOT NULL DEFAULT 0,
-  checked tinyint(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (rowid)
-) ENGINE=innodb DEFAULT CHARSET=utf8;
+ALTER TABLE llx_facture_situation_migration ADD COLUMN checked tinyint(1) NOT NULL DEFAULT 0;

@@ -86,9 +86,10 @@ FactureSituationMigrationFilterOk=OK only
 FactureSituationMigrationFilterErrors=Errors only
 FactureSituationMigrationBackupValue=Backup value
 FactureSituationMigrationCurrentValue=Current value
-FactureSituationMigrationExpectedDelta=Expected delta
+FactureSituationMigrationExpectedDelta=Expected value
 FactureSituationMigrationDeviation=Deviation
 FactureSituationMigrationCoherenceChecks=Coherence checks
+FactureSituationMigrationInvoiceTotalsMatchBackup=Invoice totals match backup totals
 FactureSituationMigrationSumDeltasEqualsTotal=Sum of deltas = final cumulative
 FactureSituationMigrationInvoiceTotalMatchesLines=Invoice totals = sum of lines
 FactureSituationMigrationPrevIdChainIntact=fk_prev_id chain intact
@@ -129,6 +130,10 @@ FactureSituationMigrationErrorStep3Select = SQL error while selecting cycles to 
 FactureSituationMigrationErrorStep3AllFailed = All cycles failed to migrate, no data was converted
 FactureSituationMigrationErrorStep3PrevCounterMissing = Cycle %s, invoice %s (situation %s): previous situation #%s is missing (gap in sequence). Cycle was rolled back and marked in error. Fix the data then reset status to 0 to retry.
 FactureSituationMigrationErrorStep3LinePercent = Cycle %s, invoice %s (situation %s): invalid or out-of-range percent on line %s. Cycle was rolled back and marked in error. Check "PERCENT_MORE_100" / "PERCENT_LESS_0" options then reset status to 0 to retry.
+FactureSituationMigrationErrorSetFactureStatus = Invoice %s: unable to update status in migration table: %s
+FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, invoice %s: unable to load invoice for total recalculation
+FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, invoice %s: update_price failed: %s
+FactureSituationMigrationErrorStep3SetChecked = Cycle %s: unable to save verification result in migration table: %s
 FactureSituationMigrationErrorStep3PrevLineMissing = Cycle %s, invoice %s (situation %s): line %s references a previous line (id=%s) that does not exist in situation %s. Cycle was rolled back and marked in error. Check the fk_prev_id chain integrity then reset status to 0 to retry.
 FactureSituationMigrationErrorStep3UpdateLine = Cycle %s, invoice %s (situation %s): SQL UPDATE failed on line %s: %s. Cycle was rolled back and marked in error. Reset status to 0 to retry after fixing the issue.
 FactureSituationMigrationErrorStep3FetchCycle = Cycle %s: SQL failure while fetching cycle details: %s
@@ -139,6 +144,8 @@ FactureSituationMigrationErrorRollbackSetConst = Error resetting constant %s
 FactureSituationMigrationErrorRollbackCleanMigration = Error cleaning migration table: %s
 FactureSituationMigrationErrorRollbackCleanBackupDet = Error cleaning facturedet backup table: %s
 FactureSituationMigrationErrorRollbackCleanBackupFac = Error cleaning facture backup table: %s
+FactureSituationMigrationErrorDetailInvoicesQuery = Cycle %s: SQL error loading invoices for verification: %s
+FactureSituationMigrationErrorDetailLinesQuery = Cycle %s: SQL error loading lines for verification: %s
 FactureSituationMigrationErrorConfirmCleanMigration = Error cleaning migration table: %s
 FactureSituationMigrationErrorConfirmCleanBackupDet = Error cleaning facturedet backup data: %s
 FactureSituationMigrationErrorConfirmCleanBackupFac = Error cleaning facture backup data: %s

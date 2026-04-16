@@ -216,11 +216,16 @@ if ($cycle_ref > 0) {
 			break;
 		}
 	}
-	$detail = $migration->getVerificationCycleDetail($cycle_ref);
+	$verify = $migration->verifyCycle($cycle_ref, $tolerance);
 
-	if (empty($detail)) {
+	if ($verify === false) {
+		// SQL error
+		print '<div class="error">'.dol_escape_htmltag($migration->error).'</div>';
+	} elseif (empty($verify['detail'])) {
 		print '<div class="opacitymedium">'.$langs->trans('NoRecordFound').'</div>';
 	} else {
+		$detail = $verify['detail'];
+
 		// Single table with 12 columns, two headers
 		print '<table class="noborder centpercent">';
 
@@ -248,17 +253,12 @@ if ($cycle_ref > 0) {
 			print '<td class="right nowraponall"><strong>'.price($cycle_summary['backup_ht']).'</strong></td>';
 			print '<td class="right nowraponall"><strong>'.price($cycle_summary['current_ht']).'</strong></td>';
 			print '<td class="right"></td>';
-			print '<td class="right nowraponall"><strong>';
-			print $cycle_summary['status_ok'] ? '<span class="badge badge-status4">0</span>' : '<span class="badge badge-status8">'.price($cycle_summary['ecart_ht']).'</span>';
-			print '</strong></td>';
+			print '<td class="right nowraponall"><strong>'.FactureSituationMigration::badgeStatus($cycle_summary['ecart_ht_ok'], '0', price($cycle_summary['ecart_ht'])).'</strong></td>';
 			print '<td class="right nowraponall"><strong>'.price($cycle_summary['backup_ttc']).'</strong></td>';
 			print '<td class="right nowraponall"><strong>'.price($cycle_summary['current_ttc']).'</strong></td>';
 			print '<td class="right"></td>';
-			print '<td class="right nowraponall"><strong>';
-			print $cycle_summary['status_ok'] ? '<span class="badge badge-status4">0</span>' : '<span class="badge badge-status8">'.price($cycle_summary['ecart_ttc']).'</span>';
-			print '</strong></td>';
-			print '<td class="center">';
-			print $cycle_summary['status_ok'] ? '<span class="badge badge-status4">OK</span>' : '<span class="badge badge-status8">'.$langs->trans('Error').'</span>';
+			print '<td class="right nowraponall"><strong>'.FactureSituationMigration::badgeStatus($cycle_summary['ecart_ttc_ok'], '0', price($cycle_summary['ecart_ttc'])).'</strong></td>';
+			print '<td class="center">'.FactureSituationMigration::badgeStatus($cycle_summary['status_ok'], 'OK', $langs->trans('Error')).'</td>';
 			print '</td>';
 			print '</tr>';
 		}
@@ -285,10 +285,7 @@ if ($cycle_ref > 0) {
 		foreach ($detail as $counter => $info) {
 			$idxInvoice++;
 			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
-			$ecart_ht = round($info['current']['total_ht'] - $expected['total_ht'], 2);
-			$ecart_ttc = round($info['current']['total_ttc'] - $expected['total_ttc'], 2);
-			$row_ok = (abs($ecart_ht) <= $tolerance && abs($ecart_ttc) <= $tolerance);
-			$row_class = $row_ok ? '' : ' style="background-color: #fdd;"';
+			$row_class = $info['row_ok'] ? '' : ' style="background-color: #fdd;"';
 
 			$facture_static = new Facture($db);
 			$facture_static->id = $info['facture_id'];
@@ -302,30 +299,12 @@ if ($cycle_ref > 0) {
 			print '<td class="right nowraponall">'.price($info['backup']['total_ht']).'</td>';
 			print '<td class="right nowraponall">'.price($info['current']['total_ht']).'</td>';
 			print '<td class="right nowraponall">'.price($expected['total_ht']).'</td>';
-			print '<td class="right nowraponall">';
-			if (abs($ecart_ht) <= $tolerance) {
-				print '<span class="badge badge-status4">0</span>';
-			} else {
-				print '<span class="badge badge-status8">'.price($ecart_ht).'</span>';
-			}
-			print '</td>';
+			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_ht_ok'], '0', price($info['ecart_ht'])).'</td>';
 			print '<td class="right nowraponall">'.price($info['backup']['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.price($info['current']['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.price($expected['total_ttc']).'</td>';
-			print '<td class="right nowraponall">';
-			if (abs($ecart_ttc) <= $tolerance) {
-				print '<span class="badge badge-status4">0</span>';
-			} else {
-				print '<span class="badge badge-status8">'.price($ecart_ttc).'</span>';
-			}
-			print '</td>';
-			print '<td class="center">';
-			if ($row_ok) {
-				print '<span class="badge badge-status4">OK</span>';
-			} else {
-				print '<span class="badge badge-status8">'.$langs->trans('Error').'</span>';
-			}
-			print '</td>';
+			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_ttc_ok'], '0', price($info['ecart_ttc'])).'</td>';
+			print '<td class="center">'.FactureSituationMigration::badgeStatus($info['row_ok'], 'OK', $langs->trans('Error')).'</td>';
 			print '</tr>';
 
 			// Lines (toggle)
@@ -357,44 +336,23 @@ if ($cycle_ref > 0) {
 
 				foreach ($info['lines'] as $line_id => $line) {
 					$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
-					$ecart_pct = round($line['current']['situation_percent'] - $line_expected['situation_percent'], 2);
-					$ecart_line_ht = round($line['current']['total_ht'] - $line_expected['total_ht'], 2);
-					$line_ok = (abs($ecart_pct) <= $tolerance && abs($ecart_line_ht) <= $tolerance);
-					$line_style = $line_ok ? '' : ' style="background-color: #fdd;"';
+					$line_style = $line['line_ok'] ? '' : ' background-color: #fdd;';
 
 					$desc = !empty($line['label']) ? $line['label'] : $line['description'];
 					$desc = dol_trunc(dol_string_nohtmltag($desc), 40);
 
-					print '<tr class="oddeven lines-sit-'.$counter.'" style="display:none"'.$line_style.'>';
+					print '<tr class="oddeven lines-sit-'.$counter.'" style="display:none;'.$line_style.'">';
 					print '<td>'.$langs->trans('FactureSituationMigrationLineId', $line_id).'</td>';
 					print '<td colspan="2">'.dol_escape_htmltag($desc).'</td>';
 					print '<td class="right nowraponall">'.$line['backup']['situation_percent'].'%</td>';
 					print '<td class="right nowraponall">'.$line['current']['situation_percent'].'%</td>';
 					print '<td class="right nowraponall">'.$line_expected['situation_percent'].'%</td>';
-					print '<td class="right nowraponall">';
-					if (abs($ecart_pct) <= $tolerance) {
-						print '<span class="badge badge-status4">0</span>';
-					} else {
-						print '<span class="badge badge-status8">'.$ecart_pct.'</span>';
-					}
-					print '</td>';
+					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_pct_ok'], '0', $line['ecart_pct']).'</td>';
 					print '<td class="right nowraponall">'.price($line['backup']['total_ht']).'</td>';
 					print '<td class="right nowraponall">'.price($line['current']['total_ht']).'</td>';
 					print '<td class="right nowraponall">'.price($line_expected['total_ht']).'</td>';
-					print '<td class="right nowraponall">';
-					if (abs($ecart_line_ht) <= $tolerance) {
-						print '<span class="badge badge-status4">0</span>';
-					} else {
-						print '<span class="badge badge-status8">'.price($ecart_line_ht).'</span>';
-					}
-					print '</td>';
-					print '<td class="center">';
-					if ($line_ok) {
-						print '<span class="badge badge-status4">OK</span>';
-					} else {
-						print '<span class="badge badge-status8">'.$langs->trans('Error').'</span>';
-					}
-					print '</td>';
+					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_ht_ok'], '0', price($line['ecart_ht'])).'</td>';
+					print '<td class="center">'.FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error')).'</td>';
 					print '</tr>';
 				}
 
@@ -423,7 +381,7 @@ if ($cycle_ref > 0) {
 		print '<br>';
 		print load_fiche_titre($langs->trans('FactureSituationMigrationCoherenceChecks'));
 
-		$checks = $migration->getCoherenceChecks($cycle_ref);
+		$checks = $verify['checks'];
 
 		print '<table class="noborder centpercent">';
 		print '<tr class="liste_titre">';
@@ -435,13 +393,7 @@ if ($cycle_ref > 0) {
 		foreach ($checks as $check) {
 			$check_class = $check['ok'] ? '' : ' style="background-color: #fdd;"';
 			print '<tr class="oddeven"'.$check_class.'>';
-			print '<td>';
-			if ($check['ok']) {
-				print '<span class="badge badge-status4">OK</span>';
-			} else {
-				print '<span class="badge badge-status8">'.$langs->trans('Error').'</span>';
-			}
-			print '</td>';
+			print '<td>'.FactureSituationMigration::badgeStatus($check['ok'], 'OK', $langs->trans('Error')).'</td>';
 			print '<td>'.$langs->trans('FactureSituationMigration'.$check['label']).'</td>';
 			print '<td>'.dol_escape_htmltag($check['details']).'</td>';
 			print '</tr>';
@@ -566,29 +518,11 @@ if ($cycle_ref > 0) {
 		print '<td class="right">'.$cycle['year'].'</td>';
 		print '<td class="right nowraponall">'.price($cycle['backup_ht']).'</td>';
 		print '<td class="right nowraponall">'.price($cycle['current_ht']).'</td>';
-		print '<td class="right nowraponall">';
-		if (abs($cycle['ecart_ht']) <= $tolerance) {
-			print '<span class="badge badge-status4">0</span>';
-		} else {
-			print '<span class="badge badge-status8">'.price($cycle['ecart_ht']).'</span>';
-		}
-		print '</td>';
+		print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($cycle['ecart_ht_ok'], '0', price($cycle['ecart_ht'])).'</td>';
 		print '<td class="right nowraponall">'.price($cycle['backup_ttc']).'</td>';
 		print '<td class="right nowraponall">'.price($cycle['current_ttc']).'</td>';
-		print '<td class="right nowraponall">';
-		if (abs($cycle['ecart_ttc']) <= $tolerance) {
-			print '<span class="badge badge-status4">0</span>';
-		} else {
-			print '<span class="badge badge-status8">'.price($cycle['ecart_ttc']).'</span>';
-		}
-		print '</td>';
-		print '<td class="center">';
-		if ($cycle['status_ok']) {
-			print '<span class="badge badge-status4">OK</span>';
-		} else {
-			print '<span class="badge badge-status8">'.$langs->trans('Error').'</span>';
-		}
-		print '</td>';
+		print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($cycle['ecart_ttc_ok'], '0', price($cycle['ecart_ttc'])).'</td>';
+		print '<td class="center">'.FactureSituationMigration::badgeStatus($cycle['status_ok'], 'OK', $langs->trans('Error')).'</td>';
 		print '<td class="center">';
 		print '<a href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$cycle['cycle_ref'].'&backtopage='.urlencode($_SERVER['PHP_SELF']."?page=".$page."&sortfield=".$sortfield."&sortorder=".$sortorder.$param).'">';
 		print '<i class="fas fa-search"></i>';
