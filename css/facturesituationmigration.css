@@ -1,0 +1,61 @@
+/* ==========================================================================
+   FactureSituationMigration - Verification page styles
+   ========================================================================== */
+
+/* Row in error (red background) - used on table rows that have ecart != 0 */
+.fsm-row-error {
+	background-color: #fdd !important;
+}
+
+/* Progress bar container */
+.fsm-progress-container {
+	display: none;
+	margin: 10px 0;
+}
+
+.fsm-progress-status {
+	margin-bottom: 5px;
+}
+
+.fsm-progress-track {
+	background-color: #ddd;
+	border-radius: 4px;
+	height: 20px;
+	width: 400px;
+}
+
+.fsm-progress-bar {
+	background-color: #4caf50;
+	height: 100%;
+	border-radius: 4px;
+	width: 0;
+	transition: width 0.3s;
+}
+
+.fsm-progress-bar.fsm-progress-warning {
+	background-color: #f0ad4e;
+}
+
+.fsm-progress-bar.fsm-progress-error {
+	background-color: #c00;
+}
+
+/* Summary progress bar (inline in the stats table) */
+.fsm-summary-progress-track {
+	background-color: #ddd;
+	border-radius: 4px;
+	height: 20px;
+	width: 300px;
+	display: inline-block;
+}
+
+.fsm-summary-progress-bar {
+	background-color: #4caf50;
+	height: 100%;
+	border-radius: 4px;
+}
+
+/* Lines toggle: hidden by default, shown via jQuery .toggle() */
+.fsm-lines-hidden {
+	display: none;
+}

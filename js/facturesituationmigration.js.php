@@ -134,7 +134,7 @@ if (empty($dolibarr_nocache)) {
 				},
 				error: function(xhr) {
 					$.jnotify(self.trans.error + ': ' + xhr.statusText, 'error', true);
-					$('#reverify-bar').css('background-color', '#c00');
+					$('#reverify-bar').addClass('fsm-progress-error');
 					$('#btn-reverify').addClass('butAction').removeClass('butActionRefused');
 				}
 			});
@@ -188,7 +188,7 @@ if (empty($dolibarr_nocache)) {
 
 			if (this.totalErrors > 0) {
 				// Errors occurred: don't reload (errors would be lost), re-enable button
-				$('#reverify-bar').css('background-color', '#f0ad4e');
+				$('#reverify-bar').addClass('fsm-progress-warning');
 				$('#btn-reverify').addClass('butAction').removeClass('butActionRefused');
 			} else {
 				// All OK: reload page to refresh the list

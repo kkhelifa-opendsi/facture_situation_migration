@@ -1705,10 +1705,10 @@ class FactureSituationMigration
 		$last_cycle_ref = (int) $last_cycle_ref;
 
 		// Count total remaining (from cursor position)
-		$sql_count = "SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_migration;
-		$sql_count .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql_count = "SELECT COUNT(*) as nb FROM " . MAIN_DB_PREFIX . $this->table_migration;
+		$sql_count .= " WHERE situation_cycle_ref > " . ((int) $last_cycle_ref);
 		$sql_count .= " AND status != 0";
-		$sql_count .= " AND entity IN (".$entityList.")";
+		$sql_count .= " AND entity IN (" . $entityList . ")";
 
 		$resql = $this->db->query($sql_count);
 		if (!$resql) {
@@ -1727,12 +1727,12 @@ class FactureSituationMigration
 		}
 
 		// Get batch of cycles to re-verify
-		$sql = "SELECT situation_cycle_ref FROM ".MAIN_DB_PREFIX.$this->table_migration;
-		$sql .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql = "SELECT situation_cycle_ref FROM " . MAIN_DB_PREFIX . $this->table_migration;
+		$sql .= " WHERE situation_cycle_ref > " . ((int) $last_cycle_ref);
 		$sql .= " AND status != 0";
-		$sql .= " AND entity IN (".$entityList.")";
+		$sql .= " AND entity IN (" . $entityList . ")";
 		$sql .= " ORDER BY situation_cycle_ref ASC";
-		$sql .= " LIMIT ".((int) $batch_size);
+		$sql .= " LIMIT " . ((int) $batch_size);
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {

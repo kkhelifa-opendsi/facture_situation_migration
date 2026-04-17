@@ -105,7 +105,7 @@ $migration = new FactureSituationMigration($db);
 if ($action == 'export_csv') {
 	if (!$migration->backupTablesExist()) {
 		setEventMessages($langs->trans('FactureSituationMigrationNoBackupTables'), null, 'errors');
-		header('Location: '.$_SERVER['PHP_SELF']);
+		header('Location: ' . $_SERVER['PHP_SELF']);
 		exit;
 	}
 
@@ -162,7 +162,8 @@ $help_url = '';
 $page_name = "FactureSituationMigrationTabVerification";
 
 $arrayofjs = array('/facturesituationmigration/js/facturesituationmigration.js.php');
-llxHeader('', $langs->trans($page_name), $help_url, '', 0, 0, $arrayofjs);
+$arrayofcss = array('/facturesituationmigration/css/facturesituationmigration.css');
+llxHeader('', $langs->trans($page_name), $help_url, '', 0, 0, $arrayofjs, $arrayofcss);
 
 // Subheader
 $linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1">'.$langs->trans("BackToModuleList").'</a>';
@@ -178,7 +179,7 @@ print '<br>';
 
 // Check backup tables
 if (!$migration->backupTablesExist()) {
-	print '<div class="warning">'.$langs->trans('FactureSituationMigrationNoBackupTables').'</div>';
+	print '<div class="warning">' . $langs->trans('FactureSituationMigrationNoBackupTables') . '</div>';
 	print dol_get_fiche_end();
 	llxFooter();
 	$db->close();
@@ -191,7 +192,7 @@ if ($cycle_ref > 0) {
 	// ========================================
 
 	// Back link
-	print '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a>';
+	print '<a href="' . $backtopage . '" class="butAction">' . $langs->trans('FactureSituationMigrationBackToList') . '</a>';
 	print '<br><br>';
 
 	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref));
@@ -213,9 +214,9 @@ if ($cycle_ref > 0) {
 
 	if ($verify === false) {
 		// SQL error
-		print '<div class="error">'.dol_escape_htmltag($migration->error).'</div>';
+		print '<div class="error">' . dol_escape_htmltag($migration->error) . '</div>';
 	} elseif (empty($verify['detail'])) {
-		print '<div class="opacitymedium">'.$langs->trans('NoRecordFound').'</div>';
+		print '<div class="opacitymedium">' . $langs->trans('NoRecordFound') . '</div>';
 	} else {
 		$detail = $verify['detail'];
 
@@ -225,51 +226,51 @@ if ($cycle_ref > 0) {
 		// Cycle summary header
 		if ($cycle_summary) {
 			print '<tr class="liste_titre">';
-			print '<td>'.$langs->trans('FactureSituationMigrationCycle').'</td>';
-			print '<td>'.$langs->trans('FactureSituationMigrationNbInvoices').'</td>';
-			print '<td>'.$langs->trans('FactureSituationMigrationYear').'</td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupHT').'</td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentHT').'</td>';
+			print '<td>' . $langs->trans('FactureSituationMigrationCycle') . '</td>';
+			print '<td>' . $langs->trans('FactureSituationMigrationNbInvoices') . '</td>';
+			print '<td>' . $langs->trans('FactureSituationMigrationYear') . '</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupHT') . '</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentHT') . '</td>';
 			print '<td class="right"></td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviationHT').'</td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupTTC').'</td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentTTC').'</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviationHT') . '</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupTTC') . '</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentTTC') . '</td>';
 			print '<td class="right"></td>';
-			print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviationTTC').'</td>';
-			print '<td class="center">'.$langs->trans('FactureSituationMigrationStatus').'</td>';
+			print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviationTTC') . '</td>';
+			print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
 			print '</tr>';
-			$row_class = $cycle_summary['status_ok'] ? '' : ' style="background-color: #fdd;"';
-			print '<tr class="oddeven"'.$row_class.'>';
-			print '<td><strong>'.$langs->trans('FactureSituationMigrationCycleRef', $cycle_summary['cycle_ref']).'</strong></td>';
-			print '<td><strong>'.$cycle_summary['nb_factures'].'</strong></td>';
-			print '<td><strong>'.$cycle_summary['year'].'</strong></td>';
-			print '<td class="right nowraponall"><strong>'.price($cycle_summary['backup_ht']).'</strong></td>';
-			print '<td class="right nowraponall"><strong>'.price($cycle_summary['current_ht']).'</strong></td>';
+			$row_class = $cycle_summary['status_ok'] ? '' : ' fsm-row-error';
+			print '<tr class="oddeven' . $row_class . '">';
+			print '<td><strong>' . $langs->trans('FactureSituationMigrationCycleRef', $cycle_summary['cycle_ref']) . '</strong></td>';
+			print '<td><strong>' . $cycle_summary['nb_factures'] . '</strong></td>';
+			print '<td><strong>' . $cycle_summary['year'] . '</strong></td>';
+			print '<td class="right nowraponall"><strong>' . price($cycle_summary['backup_ht']) . '</strong></td>';
+			print '<td class="right nowraponall"><strong>' . price($cycle_summary['current_ht']) . '</strong></td>';
 			print '<td class="right"></td>';
-			print '<td class="right nowraponall"><strong>'.FactureSituationMigration::badgeStatus($cycle_summary['ecart_ht_ok'], '0', price($cycle_summary['ecart_ht'])).'</strong></td>';
-			print '<td class="right nowraponall"><strong>'.price($cycle_summary['backup_ttc']).'</strong></td>';
-			print '<td class="right nowraponall"><strong>'.price($cycle_summary['current_ttc']).'</strong></td>';
+			print '<td class="right nowraponall"><strong>' . FactureSituationMigration::badgeStatus($cycle_summary['ecart_ht_ok'], '0', price($cycle_summary['ecart_ht'])) . '</strong></td>';
+			print '<td class="right nowraponall"><strong>' . price($cycle_summary['backup_ttc']) . '</strong></td>';
+			print '<td class="right nowraponall"><strong>' . price($cycle_summary['current_ttc']) . '</strong></td>';
 			print '<td class="right"></td>';
-			print '<td class="right nowraponall"><strong>'.FactureSituationMigration::badgeStatus($cycle_summary['ecart_ttc_ok'], '0', price($cycle_summary['ecart_ttc'])).'</strong></td>';
-			print '<td class="center">'.FactureSituationMigration::badgeStatus($cycle_summary['status_ok'], 'OK', $langs->trans('Error')).'</td>';
+			print '<td class="right nowraponall"><strong>' . FactureSituationMigration::badgeStatus($cycle_summary['ecart_ttc_ok'], '0', price($cycle_summary['ecart_ttc'])) . '</strong></td>';
+			print '<td class="center">' . FactureSituationMigration::badgeStatus($cycle_summary['status_ok'], 'OK', $langs->trans('Error')) . '</td>';
 			print '</td>';
 			print '</tr>';
 		}
 
 		// Invoice detail header
 		print '<tr class="liste_titre">';
-		print '<td>'.$langs->trans('FactureSituationMigrationSituationNb', '').'</td>';
-		print '<td>'.$langs->trans('Ref').'</td>';
-		print '<td>'.$langs->trans('Type').'</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupValue').' HT</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentValue').' HT</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationExpectedDelta').' HT</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviation').' HT</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupValue').' TTC</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentValue').' TTC</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationExpectedDelta').' TTC</td>';
-		print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviation').' TTC</td>';
-		print '<td class="center">'.$langs->trans('FactureSituationMigrationStatus').'</td>';
+		print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', '') . '</td>';
+		print '<td>' . $langs->trans('Ref') . '</td>';
+		print '<td>' . $langs->trans('Type') . '</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' HT</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' HT</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' HT</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' HT</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' TTC</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' TTC</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' TTC</td>';
+		print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' TTC</td>';
+		print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
 		print '</tr>';
 
 		// Invoice detail rows
@@ -278,26 +279,26 @@ if ($cycle_ref > 0) {
 		foreach ($detail as $counter => $info) {
 			$idxInvoice++;
 			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
-			$row_class = $info['facture_ok'] ? '' : ' style="background-color: #fdd;"';
+			$row_class = $info['facture_ok'] ? '' : ' fsm-row-error';
 
 			$facture_static = new Facture($db);
 			$facture_static->id = $info['facture_id'];
 			$facture_static->ref = $info['ref'];
 			$facture_static->type = $info['type'];
 
-			print '<tr class="oddeven"'.$row_class.'>';
-			print '<td>'.$langs->trans('FactureSituationMigrationSituationNb', $counter).'</td>';
-			print '<td>'.$facture_static->getNomUrl(1).'</td>';
-			print '<td>'.$facture_static->getLibType().'</td>';
-			print '<td class="right nowraponall">'.price($info['backup']['total_ht']).'</td>';
-			print '<td class="right nowraponall">'.price($info['current']['total_ht']).'</td>';
-			print '<td class="right nowraponall">'.price($expected['total_ht']).'</td>';
-			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_total_ht_ok'], '0', price($info['ecart_total_ht'])).'</td>';
-			print '<td class="right nowraponall">'.price($info['backup']['total_ttc']).'</td>';
-			print '<td class="right nowraponall">'.price($info['current']['total_ttc']).'</td>';
-			print '<td class="right nowraponall">'.price($expected['total_ttc']).'</td>';
-			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_total_ttc_ok'], '0', price($info['ecart_total_ttc'])).'</td>';
-			print '<td class="center">'.FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error')).'</td>';
+			print '<tr class="oddeven' . $row_class . '">';
+			print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', $counter) . '</td>';
+			print '<td>' . $facture_static->getNomUrl(1) . '</td>';
+			print '<td>' . $facture_static->getLibType() . '</td>';
+			print '<td class="right nowraponall">' . price($info['backup']['total_ht']) . '</td>';
+			print '<td class="right nowraponall">' . price($info['current']['total_ht']) . '</td>';
+			print '<td class="right nowraponall">' . price($expected['total_ht']) . '</td>';
+			print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_total_ht_ok'], '0', price($info['ecart_total_ht'])) . '</td>';
+			print '<td class="right nowraponall">' . price($info['backup']['total_ttc']) . '</td>';
+			print '<td class="right nowraponall">' . price($info['current']['total_ttc']) . '</td>';
+			print '<td class="right nowraponall">' . price($expected['total_ttc']) . '</td>';
+			print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_total_ttc_ok'], '0', price($info['ecart_total_ttc'])) . '</td>';
+			print '<td class="center">' . FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error')) . '</td>';
 			print '</tr>';
 
 			// Lines (toggle)
@@ -305,66 +306,66 @@ if ($cycle_ref > 0) {
 			if ($nb_lines > 0) {
 				print '<tr class="oddeven">';
 				print '<td colspan="12">';
-				print '<a class="reposition" href="#" onclick="jQuery(\'.lines-sit-'.$counter.'\').toggle(); return false;">';
+				print '<a class="reposition" href="#" onclick="jQuery(\'.lines-sit-' . $counter . '\').toggle(); return false;">';
 				print '<i class="fas fa-chevron-down paddingright"></i>';
-				print $langs->trans('FactureSituationMigrationShowLines').' ('.$nb_lines.')';
+				print $langs->trans('FactureSituationMigrationShowLines') . ' (' . $nb_lines . ')';
 				print '</a>';
 				print '</td>';
 				print '</tr>';
 
 				// Lines header
-				print '<tr class="liste_titre lines-sit-'.$counter.'" style="display:none">';
-				print '<td>'.$langs->trans('FactureSituationMigrationLineId', '').'</td>';
+				print '<tr class="liste_titre lines-sit-' . $counter . ' fsm-lines-hidden">';
+				print '<td>' . $langs->trans('FactureSituationMigrationLineId', '') . '</td>';
 				print '<td colspan="2">Description</td>';
 				print '<td class="right">% backup</td>';
-				print '<td class="right">% '.$langs->trans('FactureSituationMigrationCurrentValue').'</td>';
-				print '<td class="right">% '.$langs->trans('FactureSituationMigrationExpectedDelta').'</td>';
-				print '<td class="right">% '.$langs->trans('FactureSituationMigrationDeviation').'</td>';
+				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
 				print '<td class="right">HT backup</td>';
-				print '<td class="right">HT '.$langs->trans('FactureSituationMigrationCurrentValue').'</td>';
-				print '<td class="right">HT '.$langs->trans('FactureSituationMigrationExpectedDelta').'</td>';
-				print '<td class="right">HT '.$langs->trans('FactureSituationMigrationDeviation').'</td>';
-				print '<td class="center">'.$langs->trans('FactureSituationMigrationStatus').'</td>';
+				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+				print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
 				print '</tr>';
 
 				foreach ($info['lines'] as $line_id => $line) {
 					$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
-					$line_style = $line['line_ok'] ? '' : ' background-color: #fdd;';
+					$line_class = $line['line_ok'] ? '' : ' fsm-row-error';
 
 					$desc = !empty($line['label']) ? $line['label'] : $line['description'];
 					$desc = dol_trunc(dol_string_nohtmltag($desc), 40);
 
-					print '<tr class="oddeven lines-sit-'.$counter.'" style="display:none;'.$line_style.'">';
-					print '<td>'.$langs->trans('FactureSituationMigrationLineId', $line_id).'</td>';
-					print '<td colspan="2">'.dol_escape_htmltag($desc).'</td>';
-					print '<td class="right nowraponall">'.$line['backup']['situation_percent'].'%</td>';
-					print '<td class="right nowraponall">'.$line['current']['situation_percent'].'%</td>';
-					print '<td class="right nowraponall">'.$line_expected['situation_percent'].'%</td>';
-					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_situation_percent_ok'], '0', $line['ecart_situation_percent']).'</td>';
-					print '<td class="right nowraponall">'.price($line['backup']['total_ht']).'</td>';
-					print '<td class="right nowraponall">'.price($line['current']['total_ht']).'</td>';
-					print '<td class="right nowraponall">'.price($line_expected['total_ht']).'</td>';
-					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_total_ht_ok'], '0', price($line['ecart_total_ht'])).'</td>';
-					print '<td class="center">'.FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error')).'</td>';
+					print '<tr class="oddeven lines-sit-' . $counter . $line_class . ' fsm-lines-hidden">';
+					print '<td>' . $langs->trans('FactureSituationMigrationLineId', $line_id) . '</td>';
+					print '<td colspan="2">' . dol_escape_htmltag($desc) . '</td>';
+					print '<td class="right nowraponall">' . $line['backup']['situation_percent'] . '%</td>';
+					print '<td class="right nowraponall">' . $line['current']['situation_percent'] . '%</td>';
+					print '<td class="right nowraponall">' . $line_expected['situation_percent'] . '%</td>';
+					print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($line['ecart_situation_percent_ok'], '0', $line['ecart_situation_percent']) . '</td>';
+					print '<td class="right nowraponall">' . price($line['backup']['total_ht']) . '</td>';
+					print '<td class="right nowraponall">' . price($line['current']['total_ht']) . '</td>';
+					print '<td class="right nowraponall">' . price($line_expected['total_ht']) . '</td>';
+					print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($line['ecart_total_ht_ok'], '0', price($line['ecart_total_ht'])) . '</td>';
+					print '<td class="center">' . FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error')) . '</td>';
 					print '</tr>';
 				}
 
 				// Invoice detail header for next invoices
 				if ($idxInvoice < $nbInvoices) {
-				print '<tr class="liste_titre lines-sit-'.$counter.'" style="display:none">';
-				print '<td>'.$langs->trans('FactureSituationMigrationSituationNb', '').'</td>';
-				print '<td>'.$langs->trans('Ref').'</td>';
-				print '<td>'.$langs->trans('Type').'</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupValue').' HT</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentValue').' HT</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationExpectedDelta').' HT</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviation').' HT</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationBackupValue').' TTC</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationCurrentValue').' TTC</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationExpectedDelta').' TTC</td>';
-				print '<td class="right">'.$langs->trans('FactureSituationMigrationDeviation').' TTC</td>';
-				print '<td class="center">'.$langs->trans('FactureSituationMigrationStatus').'</td>';
-				print '</tr>';
+					print '<tr class="liste_titre lines-sit-' . $counter . ' fsm-lines-hidden">';
+					print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', '') . '</td>';
+					print '<td>' . $langs->trans('Ref') . '</td>';
+					print '<td>' . $langs->trans('Type') . '</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' HT</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' HT</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' HT</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' HT</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' TTC</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' TTC</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' TTC</td>';
+					print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' TTC</td>';
+					print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+					print '</tr>';
 				}
 			}
 		}
@@ -378,17 +379,17 @@ if ($cycle_ref > 0) {
 
 		print '<table class="noborder centpercent">';
 		print '<tr class="liste_titre">';
-		print '<td>'.$langs->trans('FactureSituationMigrationStatus').'</td>';
-		print '<td>'.$langs->trans('Description').'</td>';
-		print '<td>'.$langs->trans('FactureSituationMigrationDetail').'</td>';
+		print '<td>' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+		print '<td>' . $langs->trans('Description') . '</td>';
+		print '<td>' . $langs->trans('FactureSituationMigrationDetail') . '</td>';
 		print '</tr>';
 
 		foreach ($checks as $check) {
-			$check_class = $check['ok'] ? '' : ' style="background-color: #fdd;"';
-			print '<tr class="oddeven"'.$check_class.'>';
-			print '<td>'.FactureSituationMigration::badgeStatus($check['ok'], 'OK', $langs->trans('Error')).'</td>';
-			print '<td>'.$langs->trans('FactureSituationMigration'.$check['label']).'</td>';
-			print '<td>'.dol_escape_htmltag($check['details']).'</td>';
+			$check_class = $check['ok'] ? '' : ' fsm-row-error';
+			print '<tr class="oddeven' . $check_class . '">';
+			print '<td>' . FactureSituationMigration::badgeStatus($check['ok'], 'OK', $langs->trans('Error')) . '</td>';
+			print '<td>' . $langs->trans('FactureSituationMigration' . $check['label']) . '</td>';
+			print '<td>' . dol_escape_htmltag($check['details']) . '</td>';
 			print '</tr>';
 		}
 		print '</table>';
@@ -421,8 +422,8 @@ if ($cycle_ref > 0) {
 		if ($nb_total > 0) {
 			$pct_ok = round(($data['nb_ok'] / $nb_total) * 100);
 			print '<tr><td></td><td>';
-			print '<div style="background-color: #ddd; border-radius: 4px; height: 20px; width: 300px; display: inline-block;">';
-			print '<div style="background-color: #4caf50; height: 100%; border-radius: 4px; width: ' . $pct_ok . '%;"></div>';
+			print '<div class="fsm-summary-progress-track">';
+			print '<div class="fsm-summary-progress-bar" style="width: ' . $pct_ok . '%;"></div>';
 			print '</div> ' . $pct_ok . '%';
 			print '</td></tr>';
 		}
@@ -476,16 +477,16 @@ if ($cycle_ref > 0) {
 		// Action buttons
 		print '<div class="tabsAction tabsActionNoBottom">';
 		// Re-verify all cycles button
-		print '<a class="butAction" href="#" id="btn-reverify">'.$langs->trans('FactureSituationMigrationReverifyAll').'</a>';
+		print '<a class="butAction" href="#" id="btn-reverify">' . $langs->trans('FactureSituationMigrationReverifyAll') . '</a>';
 		// Export CSV button
 		print '<a class="butAction" href="' . $_SERVER['PHP_SELF'] . '?action=export_csv&token=' . newToken() . $param . '">' . $langs->trans('FactureSituationMigrationExportCSV') . '</a>';
 		print '</div>';
 
 		// Re-verify progress (hidden by default)
-		print '<div id="reverify-progress" style="display:none; margin: 10px 0;">';
-		print '<div style="margin-bottom: 5px;"><span id="reverify-status"></span></div>';
-		print '<div style="background-color: #ddd; border-radius: 4px; height: 20px; width: 400px;">';
-		print '<div id="reverify-bar" style="background-color: #4caf50; height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s;"></div>';
+		print '<div id="reverify-progress" class="fsm-progress-container">';
+		print '<div class="fsm-progress-status"><span id="reverify-status"></span></div>';
+		print '<div class="fsm-progress-track">';
+		print '<div id="reverify-bar" class="fsm-progress-bar"></div>';
 		print '</div>';
 		print '</div>';
 
@@ -513,8 +514,8 @@ if ($cycle_ref > 0) {
 		}
 
 		foreach ($data['cycles'] as $cycle) {
-			$row_class = $cycle['status_ok'] ? '' : ' style="background-color: #fdd;"';
-			print '<tr class="oddeven"' . $row_class . '>';
+			$row_class = $cycle['status_ok'] ? '' : ' fsm-row-error';
+			print '<tr class="oddeven' . $row_class . '">';
 			print '<td>' . $langs->trans('FactureSituationMigrationCycleRef', $cycle['cycle_ref']) . '</td>';
 			print '<td class="right">' . $cycle['nb_factures'] . '</td>';
 			print '<td class="right">' . $cycle['year'] . '</td>';
@@ -533,7 +534,7 @@ if ($cycle_ref > 0) {
 				print '</td>';
 			} else {
 				print '<td class="right nowraponall" colspan="6"></td>';
-				print '<td class="center"><span class="badge badge-status0">'.$langs->trans('FactureSituationMigrationCycleNotMigrated').'</span></td>';
+				print '<td class="center"><span class="badge badge-status0">' . $langs->trans('FactureSituationMigrationCycleNotMigrated') . '</span></td>';
 				print '<td class="center"></td>';
 			}
 			print '</tr>';
