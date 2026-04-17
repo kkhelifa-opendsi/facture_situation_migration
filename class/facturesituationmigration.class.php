@@ -786,22 +786,26 @@ class FactureSituationMigration
 	 *
 	 * On error, $this->error contains the translated error message.
 	 *
+	 * @param  int  $cycle_ref  If > 0, rollback only this cycle (no constants reset, no backup cleanup).
+	 *                          If 0 (default), rollback everything.
 	 * @return int  1 on success, -1=facturedet restore error, -2=facture restore error,
 	 *              -3=const error, -4=migration cleanup error, -5=backupdet cleanup error,
 	 *              -6=backupfac cleanup error
 	 */
-	public function rollbackMigration()
+	public function rollbackMigration($cycle_ref = 0)
 	{
 		global $conf, $langs;
 		$langs->load('facturesituationmigration@facturesituationmigration');
 		$this->error = '';
 		$this->warning = '';
 
-		dol_syslog('START MIGRATION ROLLBACK', LOG_DEBUG, 0, '_situationmigration');
+		$cycle_ref = (int) $cycle_ref;
+		dol_syslog('START MIGRATION ROLLBACK'.($cycle_ref > 0 ? ' for cycle '.$cycle_ref : ' (full)'), LOG_DEBUG, 0, '_situationmigration');
 
 		$this->db->begin();
 
 		$entityList = getEntity('facture');
+		$cycle_filter = ($cycle_ref > 0) ? " AND f.situation_cycle_ref = ".$cycle_ref : '';
 
 		// Restauration des valeurs depuis la table de backup via UPDATE (pas de DELETE/INSERT
 		// pour éviter les problèmes de contraintes FK sur facturedet)
@@ -819,12 +823,12 @@ class FactureSituationMigration
 			$sql .= " FROM " . MAIN_DB_PREFIX . $this->table_backupdet . " AS bk,";
 			$sql .= " " . MAIN_DB_PREFIX . $this->table_facture . " AS f";
 			$sql .= " WHERE bk.rowid = fd.rowid AND f.rowid = fd.fk_facture";
-			$sql .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")";
+			$sql .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")" . $cycle_filter;
 		} else {
 			$sql = "UPDATE " . MAIN_DB_PREFIX . $this->table_facturedet . " AS fd";
 			$sql .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_backupdet . " AS bk ON bk.rowid = fd.rowid";
 			$sql .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_facture . " AS f ON f.rowid = fd.fk_facture";
-			$sql .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")";
+			$sql .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")" . $cycle_filter;
 			$sql .= " SET fd.situation_percent = bk.situation_percent,";
 			$sql .= " fd.total_ht = bk.total_ht,";
 			$sql .= " fd.total_tva = bk.total_tva,";
@@ -859,7 +863,7 @@ class FactureSituationMigration
 			$sql_fac .= " multicurrency_total_ttc = bk.multicurrency_total_ttc";
 			$sql_fac .= " FROM " . MAIN_DB_PREFIX . $this->table_backupfac . " AS bk";
 			$sql_fac .= " WHERE bk.rowid = f.rowid";
-			$sql_fac .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")";
+			$sql_fac .= " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")" . $cycle_filter;
 		} else {
 			$sql_fac = "UPDATE " . MAIN_DB_PREFIX . $this->table_facture . " AS f";
 			$sql_fac .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_backupfac . " AS bk ON bk.rowid = f.rowid";
@@ -872,7 +876,7 @@ class FactureSituationMigration
 			$sql_fac .= " f.multicurrency_total_ht = bk.multicurrency_total_ht,";
 			$sql_fac .= " f.multicurrency_total_tva = bk.multicurrency_total_tva,";
 			$sql_fac .= " f.multicurrency_total_ttc = bk.multicurrency_total_ttc";
-			$sql_fac .= " WHERE f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")";
+			$sql_fac .= " WHERE f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . $entityList . ")" . $cycle_filter;
 		}
 		dol_syslog('sql=' . $sql_fac, LOG_DEBUG, 0, '_situationmigration');
 
@@ -884,76 +888,141 @@ class FactureSituationMigration
 			return -2;
 		}
 
-		if (!dolibarr_set_const($this->db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '0', 'chaine', 0, '', $conf->entity)) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackSetConst', 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
-			dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -3;
-		}
-		dol_syslog('Reset MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=0', LOG_DEBUG, 0, '_situationmigration');
+		if ($cycle_ref > 0) {
+			// --- Single cycle rollback ---
 
-		// VIDER LES TABLES MIGRATION ET BACKUP (scoped to current entity sharing)
-		$sql_migration = "DELETE FROM " . MAIN_DB_PREFIX . $this->table_migration;
-		$sql_migration .= " WHERE entity IN (" . $entityList . ")";
-		dol_syslog('sql=' . $sql_migration, LOG_DEBUG, 0, '_situationmigration');
-
-		$res_migration = $this->db->query($sql_migration);
-		if (!$res_migration) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanMigration', $this->db->lasterror());
-			dol_syslog($this->error . ' sql=' . $sql_migration, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -4;
-		}
-
-		$sql_backup = "DELETE FROM " . MAIN_DB_PREFIX . $this->table_backupdet;
-		$sql_backup .= " WHERE rowid IN (";
-		$sql_backup .= "SELECT * FROM (SELECT bk2.rowid FROM " . MAIN_DB_PREFIX . $this->table_backupdet . " as bk2";
-		$sql_backup .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_facture . " as f2 ON f2.rowid = bk2.fk_facture";
-		$sql_backup .= " AND f2.entity IN (" . $entityList . ")) as tmp2";
-		$sql_backup .= ")";
-		dol_syslog('sql=' . $sql_backup, LOG_DEBUG, 0, '_situationmigration');
-
-		$res_backup = $this->db->query($sql_backup);
-		if (!$res_backup) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanBackupDet', $this->db->lasterror());
-			dol_syslog($this->error . ' sql=' . $sql_backup, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -5;
-		}
-
-		$sql_backup_fac = "DELETE FROM " . MAIN_DB_PREFIX . $this->table_backupfac;
-		$sql_backup_fac .= " WHERE rowid IN (";
-		$sql_backup_fac .= "SELECT * FROM (SELECT bk3.rowid FROM " . MAIN_DB_PREFIX . $this->table_backupfac . " as bk3";
-		$sql_backup_fac .= " WHERE bk3.entity IN (" . $entityList . ")) as tmp3";
-		$sql_backup_fac .= ")";
-		dol_syslog('sql=' . $sql_backup_fac, LOG_DEBUG, 0, '_situationmigration');
-
-		$res_backup_fac = $this->db->query($sql_backup_fac);
-		if (!$res_backup_fac) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanBackupFac', $this->db->lasterror());
-			dol_syslog($this->error . ' sql=' . $sql_backup_fac, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -6;
-		}
-
-		$this->db->commit();
-
-		// Supprimer les tables de backup si elles sont vides
-		$res_count_det = $this->db->query("SELECT COUNT(*) as nb FROM " . MAIN_DB_PREFIX . $this->table_backupdet);
-		if ($res_count_det) {
-			$obj_count_det = $this->db->fetch_object($res_count_det);
-			if ($obj_count_det && intval($obj_count_det->nb) == 0) {
-				$this->db->query("DROP TABLE " . MAIN_DB_PREFIX . $this->table_backupdet);
-				dol_syslog('Dropped empty backup table ' . MAIN_DB_PREFIX . $this->table_backupdet, LOG_DEBUG, 0, '_situationmigration');
+			// Recalculate update_price in mode 1 (lines are back to cumulative)
+			$save_use_situation = getDolGlobalString('INVOICE_USE_SITUATION');
+			$conf->global->INVOICE_USE_SITUATION = '1';
+			$sql_invoices = "SELECT rowid, ref FROM ".MAIN_DB_PREFIX.$this->table_facture;
+			$sql_invoices .= " WHERE situation_cycle_ref = ".$cycle_ref;
+			$sql_invoices .= " AND entity IN (".$entityList.")";
+			$sql_invoices .= " ORDER BY situation_counter ASC";
+			$resql = $this->db->query($sql_invoices);
+			if ($resql) {
+				while ($obj_inv = $this->db->fetch_object($resql)) {
+					$facture_tmp = new Facture($this->db);
+					$res_fetch = $facture_tmp->fetch($obj_inv->rowid);
+					if ($res_fetch <= 0) {
+						$this->error = $langs->trans('FactureSituationMigrationErrorStep3FetchInvoice', $cycle_ref, $obj_inv->ref);
+						dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
+						$conf->global->INVOICE_USE_SITUATION = $save_use_situation;
+						$this->db->rollback();
+						return -7;
+					}
+					$res_price = $facture_tmp->update_price(1);
+					if ($res_price < 0) {
+						$this->error = $langs->trans('FactureSituationMigrationErrorStep3UpdatePrice', $cycle_ref, $obj_inv->ref, $facture_tmp->error);
+						dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
+						$conf->global->INVOICE_USE_SITUATION = $save_use_situation;
+						$this->db->rollback();
+						return -7;
+					}
+					dol_syslog('update_price mode 1 done for invoice '.$obj_inv->ref.' (cycle rollback)', LOG_DEBUG, 0, '_situationmigration');
+				}
+				$this->db->free($resql);
 			}
-		}
+			$conf->global->INVOICE_USE_SITUATION = $save_use_situation;
 
-		$res_count_fac = $this->db->query("SELECT COUNT(*) as nb FROM " . MAIN_DB_PREFIX . $this->table_backupfac);
-		if ($res_count_fac) {
-			$obj_count_fac = $this->db->fetch_object($res_count_fac);
-			if ($obj_count_fac && intval($obj_count_fac->nb) == 0) {
-				$this->db->query("DROP TABLE " . MAIN_DB_PREFIX . $this->table_backupfac);
-				dol_syslog('Dropped empty backup table ' . MAIN_DB_PREFIX . $this->table_backupfac, LOG_DEBUG, 0, '_situationmigration');
+			// Reset cycle status to 0 in migration table
+			$sql_migration = "UPDATE ".MAIN_DB_PREFIX.$this->table_migration;
+			$sql_migration .= " SET status = 0";
+			$sql_migration .= " WHERE situation_cycle_ref = ".$cycle_ref;
+			$sql_migration .= " AND entity IN (".$entityList.")";
+			dol_syslog('sql='.$sql_migration, LOG_DEBUG, 0, '_situationmigration');
+
+			$res_migration = $this->db->query($sql_migration);
+			if (!$res_migration) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCycleStatus', $cycle_ref, $this->db->lasterror());
+				dol_syslog($this->error.' sql='.$sql_migration, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -4;
+			}
+
+			// Set STEP back to 2 so step 3 can be re-run for this cycle
+			if (!dolibarr_set_const($this->db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '2', 'chaine', 0, '', $conf->entity)) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackSetConst', 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
+				dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -3;
+			}
+			dol_syslog('Set MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=2 (single cycle rollback)', LOG_DEBUG, 0, '_situationmigration');
+
+			$this->db->commit();
+		} else {
+			// --- Full rollback ---
+
+			if (!dolibarr_set_const($this->db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '0', 'chaine', 0, '', $conf->entity)) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackSetConst', 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
+				dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -3;
+			}
+			dol_syslog('Reset MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=0', LOG_DEBUG, 0, '_situationmigration');
+
+			// VIDER LES TABLES MIGRATION ET BACKUP (scoped to current entity sharing)
+			$sql_migration = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_migration;
+			$sql_migration .= " WHERE entity IN (".$entityList.")";
+			dol_syslog('sql='.$sql_migration, LOG_DEBUG, 0, '_situationmigration');
+
+			$res_migration = $this->db->query($sql_migration);
+			if (!$res_migration) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanMigration', $this->db->lasterror());
+				dol_syslog($this->error.' sql='.$sql_migration, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -4;
+			}
+
+			$sql_backup = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_backupdet;
+			$sql_backup .= " WHERE rowid IN (";
+			$sql_backup .= "SELECT * FROM (SELECT bk2.rowid FROM ".MAIN_DB_PREFIX.$this->table_backupdet." as bk2";
+			$sql_backup .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f2 ON f2.rowid = bk2.fk_facture";
+			$sql_backup .= " AND f2.entity IN (".$entityList.")) as tmp2";
+			$sql_backup .= ")";
+			dol_syslog('sql='.$sql_backup, LOG_DEBUG, 0, '_situationmigration');
+
+			$res_backup = $this->db->query($sql_backup);
+			if (!$res_backup) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanBackupDet', $this->db->lasterror());
+				dol_syslog($this->error.' sql='.$sql_backup, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -5;
+			}
+
+			$sql_backup_fac = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_backupfac;
+			$sql_backup_fac .= " WHERE rowid IN (";
+			$sql_backup_fac .= "SELECT * FROM (SELECT bk3.rowid FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk3";
+			$sql_backup_fac .= " WHERE bk3.entity IN (".$entityList.")) as tmp3";
+			$sql_backup_fac .= ")";
+			dol_syslog('sql='.$sql_backup_fac, LOG_DEBUG, 0, '_situationmigration');
+
+			$res_backup_fac = $this->db->query($sql_backup_fac);
+			if (!$res_backup_fac) {
+				$this->error = $langs->trans('FactureSituationMigrationErrorRollbackCleanBackupFac', $this->db->lasterror());
+				dol_syslog($this->error.' sql='.$sql_backup_fac, LOG_ERR, 0, '_situationmigration');
+				$this->db->rollback();
+				return -6;
+			}
+
+			$this->db->commit();
+
+			// Supprimer les tables de backup si elles sont vides
+			$res_count_det = $this->db->query("SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_backupdet);
+			if ($res_count_det) {
+				$obj_count_det = $this->db->fetch_object($res_count_det);
+				if ($obj_count_det && intval($obj_count_det->nb) == 0) {
+					$this->db->query("DROP TABLE ".MAIN_DB_PREFIX.$this->table_backupdet);
+					dol_syslog('Dropped empty backup table '.MAIN_DB_PREFIX.$this->table_backupdet, LOG_DEBUG, 0, '_situationmigration');
+				}
+			}
+
+			$res_count_fac = $this->db->query("SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_backupfac);
+			if ($res_count_fac) {
+				$obj_count_fac = $this->db->fetch_object($res_count_fac);
+				if ($obj_count_fac && intval($obj_count_fac->nb) == 0) {
+					$this->db->query("DROP TABLE ".MAIN_DB_PREFIX.$this->table_backupfac);
+					dol_syslog('Dropped empty backup table '.MAIN_DB_PREFIX.$this->table_backupfac, LOG_DEBUG, 0, '_situationmigration');
+				}
 			}
 		}
 
@@ -1683,10 +1752,12 @@ class FactureSituationMigration
 	 * @param  int    $search_year    Filter by year (0 = all)
 	 * @param  string $sortfield      Sort field (default 'cycle_ref')
 	 * @param  string $sortorder      Sort order ASC/DESC (default 'ASC')
-	 * @return array                  array('prev' => int|null, 'next' => int|null)
+	 * @return array|false             array('prev' => int|null, 'next' => int|null), or false on SQL error
 	 */
 	public function getAdjacentCycles($cycle_ref, $search_status = 'all', $search_year = 0, $sortfield = 'cycle_ref', $sortorder = 'ASC')
 	{
+		global $langs;
+		$langs->load('facturesituationmigration@facturesituationmigration');
 		$result = array('prev' => null, 'next' => null);
 
 		$entityList = getEntity('facture');
@@ -1741,22 +1812,28 @@ class FactureSituationMigration
 		}
 
 		$resql = $this->db->query($sql_prev);
-		if ($resql) {
-			$obj = $this->db->fetch_object($resql);
-			if ($obj) {
-				$result['prev'] = (int) $obj->cycle_ref;
-			}
-			$this->db->free($resql);
+		if (!$resql) {
+			$this->error = $langs->trans('FactureSituationMigrationErrorAdjacentCycles', $cycle_ref, $this->db->lasterror());
+			dol_syslog('getAdjacentCycles: SQL error on prev query: '.$this->db->lasterror(), LOG_ERR, 0, '_situationmigration');
+			return false;
 		}
+		$obj = $this->db->fetch_object($resql);
+		if ($obj) {
+			$result['prev'] = (int) $obj->cycle_ref;
+		}
+		$this->db->free($resql);
 
 		$resql = $this->db->query($sql_next);
-		if ($resql) {
-			$obj = $this->db->fetch_object($resql);
-			if ($obj) {
-				$result['next'] = (int) $obj->cycle_ref;
-			}
-			$this->db->free($resql);
+		if (!$resql) {
+			$this->error = $langs->trans('FactureSituationMigrationErrorAdjacentCycles', $cycle_ref, $this->db->lasterror());
+			dol_syslog('getAdjacentCycles: SQL error on next query: '.$this->db->lasterror(), LOG_ERR, 0, '_situationmigration');
+			return false;
 		}
+		$obj = $this->db->fetch_object($resql);
+		if ($obj) {
+			$result['next'] = (int) $obj->cycle_ref;
+		}
+		$this->db->free($resql);
 
 		return $result;
 	}

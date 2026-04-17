@@ -101,6 +101,95 @@ $migration = new FactureSituationMigration($db);
  * Actions
  */
 
+// Rollback a single cycle
+if ($action == 'rollback_cycle' && $cycle_ref > 0) {
+	$result_rb = $migration->rollbackMigration($cycle_ref);
+	if ($result_rb < 0) {
+		setEventMessages($migration->error, null, 'errors');
+	} else {
+		setEventMessages($langs->trans('FactureSituationMigrationRollbackCycleDone', $cycle_ref), null, 'mesgs');
+
+		// Get adjacent cycles to redirect (cycle just left the filtered list)
+		$adjacent = $migration->getAdjacentCycles($cycle_ref, $search_status, $search_year, $sortfield, $sortorder);
+		$redirect_cycle = 0;
+		if ($adjacent !== false) {
+			if ($adjacent['next'] !== null) {
+				$redirect_cycle = $adjacent['next'];
+			} elseif ($adjacent['prev'] !== null) {
+				$redirect_cycle = $adjacent['prev'];
+			}
+		} else {
+			setEventMessages($migration->error, null, 'errors');
+		}
+
+		if ($redirect_cycle > 0) {
+			$redirect_url = $_SERVER['PHP_SELF'].'?cycle_ref='.$redirect_cycle;
+			if ($search_status != 'all') {
+				$redirect_url .= '&search_status='.urlencode($search_status);
+			}
+			if ($search_year > 0) {
+				$redirect_url .= '&search_year='.$search_year;
+			}
+			if ($sortfield) {
+				$redirect_url .= '&sortfield='.urlencode($sortfield);
+			}
+			if ($sortorder) {
+				$redirect_url .= '&sortorder='.urlencode($sortorder);
+			}
+			if ($backtopage) {
+				$redirect_url .= '&backtopage='.urlencode($backtopage);
+			}
+		} else {
+			$redirect_url = !empty($backtopage) ? $backtopage : $_SERVER['PHP_SELF'];
+		}
+		header('Location: '.$redirect_url);
+		exit;
+	}
+}
+
+// Re-verify a single cycle
+if ($action == 'reverify_cycle' && $cycle_ref > 0) {
+	$verify_result = $migration->verifyCycle($cycle_ref, $tolerance);
+	if ($verify_result === false) {
+		setEventMessages($migration->error, null, 'errors');
+	} else {
+		if ($verify_result['ok']) {
+			$res_status = $migration->setCycleSuccessful($cycle_ref);
+			if ($res_status < 0) {
+				setEventMessages($migration->error, null, 'errors');
+			} else {
+				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleOk'), null, 'mesgs');
+			}
+		} else {
+			$res_status = $migration->setCycleError($cycle_ref);
+			if ($res_status < 0) {
+				setEventMessages($migration->error, null, 'errors');
+			} else {
+				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleError'), null, 'warnings');
+			}
+		}
+	}
+	// Rebuild URL with current params for redirect (PRG)
+	$redirect_url = $_SERVER['PHP_SELF'].'?cycle_ref='.$cycle_ref;
+	if ($search_status != 'all') {
+		$redirect_url .= '&search_status='.urlencode($search_status);
+	}
+	if ($search_year > 0) {
+		$redirect_url .= '&search_year='.$search_year;
+	}
+	if ($sortfield) {
+		$redirect_url .= '&sortfield='.urlencode($sortfield);
+	}
+	if ($sortorder) {
+		$redirect_url .= '&sortorder='.urlencode($sortorder);
+	}
+	if ($backtopage) {
+		$redirect_url .= '&backtopage='.urlencode($backtopage);
+	}
+	header('Location: '.$redirect_url);
+	exit;
+}
+
 // CSV Export
 if ($action == 'export_csv') {
 	if (!$migration->backupTablesExist()) {
@@ -193,6 +282,9 @@ if ($cycle_ref > 0) {
 
 	// Navigation: back + prev/next
 	$adjacent = $migration->getAdjacentCycles($cycle_ref, $search_status, $search_year, $sortfield, $sortorder);
+	if ($adjacent === false) {
+		setEventMessages($migration->error, null, 'errors');
+	}
 
 	// Build base URL for prev/next (preserve filters)
 	$nav_params = '';
@@ -212,28 +304,26 @@ if ($cycle_ref > 0) {
 		$nav_params .= '&backtopage='.urlencode($backtopage);
 	}
 
-	print '<div class="pagination">';
-	// Previous
-	if ($adjacent['prev'] !== null) {
-		print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$nav_params.'">';
-		print '<i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous');
-		print '</a> ';
+	// Pagination: prev / back / next (right-aligned via load_fiche_titre)
+	$nav_links = '';
+	if ($adjacent !== false && $adjacent['prev'] !== null) {
+		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$nav_params.'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</a> ';
 	} else {
-		print '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Previous').'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</span> ';
+		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Previous').'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</span> ';
 	}
-	// Back to list
-	print '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a> ';
-	// Next
-	if ($adjacent['next'] !== null) {
-		print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$nav_params.'">';
-		print $langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i>';
-		print '</a>';
+	$nav_links .= '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a> ';
+	if ($adjacent !== false && $adjacent['next'] !== null) {
+		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$nav_params.'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></a>';
 	} else {
-		print '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Next').'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></span>';
+		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Next').'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></span>';
 	}
-	print '</div>';
+	print load_fiche_titre('', $nav_links, '');
 
-	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref));
+	// Title + action buttons (right-aligned)
+	$action_links = '';
+	$action_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=reverify_cycle&cycle_ref='.$cycle_ref.$nav_params.'">'.$langs->trans('FactureSituationMigrationReverifyCycle').'</a> ';
+	$action_links .= '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?action=rollback_cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$nav_params.'" onclick="return confirm(\''.dol_escape_js($langs->trans('FactureSituationMigrationRollbackCycleConfirm')).'\')">'.$langs->trans('FactureSituationMigrationRollbackCycle').'</a>';
+	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref), $action_links);
 
 	// Cycle summary from list data
 	$cycle_data = $migration->getVerificationCyclesList('all', 0, 'cycle_ref', 'ASC', 0, 0, $tolerance);

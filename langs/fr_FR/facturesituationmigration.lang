@@ -110,6 +110,12 @@ FactureSituationMigrationRecalculateConfirm=Recalculer les totaux de toutes les 
 FactureSituationMigrationRecalcDone=%s factures recalculées avec succès
 FactureSituationMigrationConfirmDone=Migration confirmée. Les données de backup de cette entité ont été nettoyées.
 FactureSituationMigrationCycleNotMigrated=Non migré
+FactureSituationMigrationReverifyCycle=Revérifier ce cycle
+FactureSituationMigrationReverifyCycleOk=Cycle vérifié : OK
+FactureSituationMigrationReverifyCycleError=Cycle vérifié : erreurs détectées
+FactureSituationMigrationRollbackCycle=Rollback ce cycle
+FactureSituationMigrationRollbackCycleConfirm=Restaurer les données originales de ce cycle depuis le backup ? Le cycle devra être re-migré via l'étape 3.
+FactureSituationMigrationRollbackCycleDone=Cycle %s restauré depuis le backup
 
 #
 # Home
@@ -136,6 +142,8 @@ FactureSituationMigrationErrorSetCycleStatus = Cycle %s : impossible de mettre �
 FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, facture %s : impossible de charger la facture pour recalculer les totaux
 FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, facture %s : échec du recalcul des totaux (update_price) : %s
 FactureSituationMigrationErrorStep3SetChecked = Cycle %s : impossible d'enregistrer le résultat de vérification dans la table de migration : %s
+FactureSituationMigrationErrorAdjacentCycles = Cycle %s : erreur SQL lors de la recherche des cycles adjacents : %s
+FactureSituationMigrationErrorRollbackCycleStatus = Cycle %s : impossible de réinitialiser le statut dans la table de migration : %s
 FactureSituationMigrationErrorStep3PrevLineMissing = Cycle %s, facture %s (situation %s) : la ligne %s référence une ligne précédente (id=%s) introuvable dans la situation %s. Le cycle a été annulé et marqué en erreur. Vérifiez l'intégrité du chaînage fk_prev_id puis réinitialisez le statut à 0 pour réessayer.
 FactureSituationMigrationErrorStep3UpdateLine = Cycle %s, facture %s (situation %s) : échec SQL UPDATE sur la ligne %s : %s. Le cycle a été annulé et marqué en erreur. Réinitialisez le statut à 0 pour réessayer après correction.
 FactureSituationMigrationErrorStep3FetchCycle = Cycle %s : échec SQL lors de la récupération des détails du cycle : %s

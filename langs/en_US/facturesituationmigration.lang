@@ -110,6 +110,12 @@ FactureSituationMigrationRecalculateConfirm=Recalculate totals for all situation
 FactureSituationMigrationRecalcDone=%s invoices recalculated successfully
 FactureSituationMigrationConfirmDone=Migration confirmed. Backup data for this entity has been cleaned up.
 FactureSituationMigrationCycleNotMigrated=Not migrated
+FactureSituationMigrationReverifyCycle=Re-verify this cycle
+FactureSituationMigrationReverifyCycleOk=Cycle verified: OK
+FactureSituationMigrationReverifyCycleError=Cycle verified: errors detected
+FactureSituationMigrationRollbackCycle=Rollback this cycle
+FactureSituationMigrationRollbackCycleConfirm=Restore original data for this cycle from backup? The cycle will need to be re-migrated via step 3.
+FactureSituationMigrationRollbackCycleDone=Cycle %s restored from backup
 
 #
 # Home
@@ -136,6 +142,8 @@ FactureSituationMigrationErrorSetCycleStatus = Cycle %s: unable to update status
 FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, invoice %s: unable to load invoice for total recalculation
 FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, invoice %s: update_price failed: %s
 FactureSituationMigrationErrorStep3SetChecked = Cycle %s: unable to save verification result in migration table: %s
+FactureSituationMigrationErrorAdjacentCycles = Cycle %s: SQL error while finding adjacent cycles: %s
+FactureSituationMigrationErrorRollbackCycleStatus = Cycle %s: unable to reset status in migration table: %s
 FactureSituationMigrationErrorStep3PrevLineMissing = Cycle %s, invoice %s (situation %s): line %s references a previous line (id=%s) that does not exist in situation %s. Cycle was rolled back and marked in error. Check the fk_prev_id chain integrity then reset status to 0 to retry.
 FactureSituationMigrationErrorStep3UpdateLine = Cycle %s, invoice %s (situation %s): SQL UPDATE failed on line %s: %s. Cycle was rolled back and marked in error. Reset status to 0 to retry after fixing the issue.
 FactureSituationMigrationErrorStep3FetchCycle = Cycle %s: SQL failure while fetching cycle details: %s
