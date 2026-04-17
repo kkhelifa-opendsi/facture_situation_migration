@@ -21,3 +21,8 @@
 .fsm-lines-hidden {
 	display: none;
 }
+
+/* Clickable cells (toggle lines / secondary amounts) */
+td[onclick] {
+	cursor: pointer;
+}
