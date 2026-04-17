@@ -386,20 +386,7 @@ if ($cycle_ref > 0) {
 		}
 
 		// Invoice detail header
-		print '<tr class="liste_titre">';
-		print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', '') . '</td>';
-		print '<td>' . $langs->trans('Ref') . '</td>';
-		print '<td>' . $langs->trans('Type') . '</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' HT</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' HT</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' HT</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' HT</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' TTC</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' TTC</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' TTC</td>';
-		print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' TTC</td>';
-		print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
-		print '</tr>';
+		print printInvoiceHeaders();
 
 		// Invoice detail rows
 		$nbInvoices = count($detail);
@@ -408,14 +395,31 @@ if ($cycle_ref > 0) {
 			$idxInvoice++;
 			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
 			$row_class = $info['facture_ok'] ? '' : ' fsm-row-error';
+			$nb_lines = count($info['lines']);
 
 			$facture_static = new Facture($db);
 			$facture_static->id = $info['facture_id'];
 			$facture_static->ref = $info['ref'];
 			$facture_static->type = $info['type'];
 
+			// Secondary amounts expandable row (only if errors on non-displayed fields)
+			$fac_secondary_fields = array(
+				'total_tva' => $langs->trans('VAT'),
+				'localtax1' => $langs->trans('LT1'),
+				'localtax2' => $langs->trans('LT2'),
+				'multicurrency_total_ht' => $langs->trans('MulticurrencyAmountHT'),
+				'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
+				'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
+			);
+			$secondary_errors = printSecondaryAmountsErrors($fac_secondary_fields, $info, $expected, $counter);
+
 			print '<tr class="oddeven' . $row_class . '">';
-			print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', $counter) . '</td>';
+			print '<td' . ($nb_lines > 0 ? ' onclick="jQuery(\'.lines-sit-' . $counter . '\').toggle(); jQuery(\'.fsm-sec-line-sit-' . $counter . '\').hide(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationShowLines')) . '"' : '') .'>';
+			print $langs->trans('FactureSituationMigrationSituationNb', $counter);
+			if ($nb_lines > 0) {
+				print '<i class="fas fa-chevron-down paddingleft paddingright"></i>(' . $nb_lines . ')';
+			}
+			print '</td>';
 			print '<td>' . $facture_static->getNomUrl(1) . '</td>';
 			print '<td>' . $facture_static->getLibType() . '</td>';
 			print '<td class="right nowraponall">' . price($info['backup']['total_ht']) . '</td>';
@@ -426,42 +430,42 @@ if ($cycle_ref > 0) {
 			print '<td class="right nowraponall">' . price($info['current']['total_ttc']) . '</td>';
 			print '<td class="right nowraponall">' . price($expected['total_ttc']) . '</td>';
 			print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_total_ttc_ok'], '0', price($info['ecart_total_ttc'])) . '</td>';
-			print '<td class="center">' . FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error')) . '</td>';
+			print '<td class="center"' . ($secondary_errors['nb'] > 0 ? ' onclick="jQuery(\'.fsm-sec-fac-' . $counter . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '"' : '') .'>';
+			print FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error'));
+			if ($secondary_errors['nb'] > 0) {
+				print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>(' . $secondary_errors['nb'] . ')';
+			}
+			print '</td>';
 			print '</tr>';
 
+			print $secondary_errors['html'];
+
 			// Lines (toggle)
-			$nb_lines = count($info['lines']);
 			if ($nb_lines > 0) {
-				print '<tr class="oddeven">';
-				print '<td colspan="12">';
-				print '<a class="reposition" href="#" onclick="jQuery(\'.lines-sit-' . $counter . '\').toggle(); return false;">';
-				print '<i class="fas fa-chevron-down paddingright"></i>';
-				print $langs->trans('FactureSituationMigrationShowLines') . ' (' . $nb_lines . ')';
-				print '</a>';
-				print '</td>';
-				print '</tr>';
-
 				// Lines header
-				print '<tr class="liste_titre lines-sit-' . $counter . ' fsm-lines-hidden">';
-				print '<td>' . $langs->trans('FactureSituationMigrationLineId', '') . '</td>';
-				print '<td colspan="2">Description</td>';
-				print '<td class="right">% backup</td>';
-				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
-				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
-				print '<td class="right">% ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
-				print '<td class="right">HT backup</td>';
-				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
-				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
-				print '<td class="right">HT ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
-				print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
-				print '</tr>';
+				print printInvoiceLineHeaders($counter);
 
+				$nbLines = count($info['lines']);
+				$idxLine = 0;
 				foreach ($info['lines'] as $line_id => $line) {
+					$idxLine++;
 					$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
 					$line_class = $line['line_ok'] ? '' : ' fsm-row-error';
 
 					$desc = !empty($line['label']) ? $line['label'] : $line['description'];
 					$desc = dol_trunc(dol_string_nohtmltag($desc), 40);
+
+					// Secondary amounts for this line (only if errors on non-displayed fields)
+					$line_secondary_fields = array(
+						'total_tva' => $langs->trans('VAT'),
+						'total_ttc' => 'TTC',
+						'total_localtax1' => $langs->trans('LT1'),
+						'total_localtax2' => $langs->trans('LT2'),
+						'multicurrency_total_ht' => $langs->trans('MulticurrencyAmountHT'),
+						'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
+						'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
+					);
+					$secondary_errors = printSecondaryAmountsErrors($line_secondary_fields, $line, $line_expected, $counter, $line_id, $idxLine < $nbLines);
 
 					print '<tr class="oddeven lines-sit-' . $counter . $line_class . ' fsm-lines-hidden">';
 					print '<td>' . $langs->trans('FactureSituationMigrationLineId', $line_id) . '</td>';
@@ -474,26 +478,20 @@ if ($cycle_ref > 0) {
 					print '<td class="right nowraponall">' . price($line['current']['total_ht']) . '</td>';
 					print '<td class="right nowraponall">' . price($line_expected['total_ht']) . '</td>';
 					print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($line['ecart_total_ht_ok'], '0', price($line['ecart_total_ht'])) . '</td>';
-					print '<td class="center">' . FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error')) . '</td>';
+					print '<td class="center"' . ($secondary_errors['nb'] > 0 ? ' onclick="jQuery(\'.fsm-sec-line-' . $line_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '"' : '') .'>';
+					print FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error'));
+					if ($secondary_errors['nb'] > 0) {
+						print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>(' . $secondary_errors['nb'] . ')';
+					}
+					print '</td>';
 					print '</tr>';
+
+					print $secondary_errors['html'];
 				}
 
 				// Invoice detail header for next invoices
 				if ($idxInvoice < $nbInvoices) {
-					print '<tr class="liste_titre lines-sit-' . $counter . ' fsm-lines-hidden">';
-					print '<td>' . $langs->trans('FactureSituationMigrationSituationNb', '') . '</td>';
-					print '<td>' . $langs->trans('Ref') . '</td>';
-					print '<td>' . $langs->trans('Type') . '</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' HT</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' HT</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' HT</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' HT</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' TTC</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' TTC</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' TTC</td>';
-					print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' TTC</td>';
-					print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
-					print '</tr>';
+					print printInvoiceHeaders($counter);
 				}
 			}
 		}
@@ -676,3 +674,112 @@ print dol_get_fiche_end();
 
 llxFooter();
 $db->close();
+
+/**
+ * Get invoice headers HTML to show
+ * @param	int		$counter	Line counter (used show/hide line bloc)
+ * @return	string				Html string
+ */
+function printInvoiceHeaders($counter = -1)
+{
+	global $langs;
+
+	$out = '<tr class="liste_titre' . ($counter == -1 ? '' : ' lines-sit-' . $counter . ' fsm-lines-hidden') . '">';
+	$out .= '<td>' . $langs->trans('FactureSituationMigrationSituationNb', '') . '</td>';
+	$out .= '<td>' . $langs->trans('Ref') . '</td>';
+	$out .= '<td>' . $langs->trans('Type') . '</td>';
+	foreach ([$langs->trans('HT'), $langs->trans('TTC')] as $label) {
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . ' ' . $label . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . ' ' . $label . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . ' ' . $label . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' ' . $label . '</td>';
+	}
+	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+	$out .= '</tr>';
+
+	return $out;
+}
+
+/**
+ * Get invoice line headers HTML to show
+ * @param	int		$counter	Line counter (used show/hide line bloc)
+ * @param	int		$line_id	Line ID (used show/hide sub errors line bloc)
+ * @return	string				Html string
+ */
+function printInvoiceLineHeaders($counter, $line_id = -1)
+{
+	global $langs;
+
+	$out = '<tr class="liste_titre' . ($line_id == -1 ? ' lines-sit-' . $counter : ' fsm-sec-line-' . $line_id . ' fsm-sec-line-sit-' . $counter) . ' fsm-lines-hidden">';
+	$out .= '<td>' . $langs->trans('FactureSituationMigrationLineId', '') . '</td>';
+	$out .= '<td colspan="2">Description</td>';
+	$out .= '<td class="right">% backup</td>';
+	$out .= '<td class="right">% ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+	$out .= '<td class="right">% ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+	$out .= '<td class="right">% ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+	$out .= '<td class="right">HT backup</td>';
+	$out .= '<td class="right">HT ' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+	$out .= '<td class="right">HT ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+	$out .= '<td class="right">HT ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+	$out .= '</tr>';
+
+	return $out;
+}
+
+/**
+ * Get secondary amounts in errors HTML to show
+ * @param	array	$secondary_fields	List of secondary amounts to show
+ * @param	array	$info				Infos
+ * @param	array	$expected			Expected infos
+ * @param	int		$counter			Line counter (used show/hide line bloc)
+ * @param	int		$line_id			Line ID (used show/hide sub errors line bloc)
+ * @param	bool	$show_line_header	Show line header after the bloc
+ * @return	array						array('html' => xxx, 'nb' => yyy)
+ */
+function printSecondaryAmountsErrors($secondary_fields, $info, $expected, $counter, $line_id = -1, $show_line_header = false)
+{
+	global $langs;
+
+	$result = array('html' => '', 'nb' => 0);
+
+	// Secondary amounts expandable row (only if errors on non-displayed fields)
+	$secondary_errors = array();
+	foreach ($secondary_fields as $field => $label) {
+		if (!$info['ecart_' . $field . '_ok']) {
+			$secondary_errors[$field] = $label;
+		}
+	}
+	if (!empty($secondary_errors)) {
+		$class = ($line_id == -1 ? 'fsm-sec-fac-' . $counter : 'fsm-sec-line-' . $line_id . ' fsm-sec-line-sit-' . $counter) . ' fsm-lines-hidden';
+		$out = '<tr class="liste_titre ' . $class . '">';
+		$out .= '<td colspan="3">' . $langs->trans('FactureSituationMigrationDetail') . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+		$out .= '<td colspan="5"></td>';
+		$out .= '</tr>';
+
+		foreach ($secondary_errors as $field => $label) {
+			$out .= '<tr class="oddeven ' . $class . ' fsm-row-error">';
+			$out .= '<td colspan="3">' . dol_escape_htmltag($label) . '</td>';
+			$out .= '<td class="right nowraponall">' . price($info['backup'][$field]) . '</td>';
+			$out .= '<td class="right nowraponall">' . price($info['current'][$field]) . '</td>';
+			$out .= '<td class="right nowraponall">' . price($expected[$field]) . '</td>';
+			$ecart = price($info['ecart_' . $field]);
+			$out .= '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_' . $field . '_ok'], $ecart, $ecart) . '</td>';
+			$out .= '<td colspan="5"></td>';
+			$out .= '</tr>';
+		}
+
+		// Lines header for next line
+		if ($show_line_header) {
+			$out .= printInvoiceLineHeaders($counter, $line_id);
+		}
+
+		$result = array('html' => $out, 'nb' => count($secondary_errors));
+	}
+
+	return $result;
+}

@@ -116,6 +116,7 @@ FactureSituationMigrationReverifyCycleError=Cycle vérifié : erreurs détectée
 FactureSituationMigrationRollbackCycle=Rollback ce cycle
 FactureSituationMigrationRollbackCycleConfirm=Restaurer les données originales de ce cycle depuis le backup ? Le cycle devra être re-migré via l'étape 3.
 FactureSituationMigrationRollbackCycleDone=Cycle %s restauré depuis le backup
+FactureSituationMigrationSecondaryAmounts=Montants secondaires en écart
 
 #
 # Home
