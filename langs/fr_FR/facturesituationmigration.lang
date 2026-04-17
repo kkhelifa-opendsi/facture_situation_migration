@@ -28,7 +28,7 @@ ModuleFactureSituationMigrationDesc = Module pour migrer les facture de situatio
 FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
-FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Tolérance d'arrondi pour la page de vérification (par défaut 0.01)
+FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Tolérance d'arrondi pour la page de vérification (par défaut 0)
 
 #
 # About page
@@ -100,6 +100,9 @@ FactureSituationMigrationHideLines=Masquer les lignes
 FactureSituationMigrationYear=Année
 FactureSituationMigrationAllYears=Toutes
 FactureSituationMigrationBackToList=Retour à la liste
+FactureSituationMigrationReverifyAll=Revérifier tous les cycles
+FactureSituationMigrationReverifyConfirm=Relancer la vérification de tous les cycles migrés ? Cette opération peut prendre du temps.
+FactureSituationMigrationReverifyDone=Revérification terminée
 FactureSituationMigrationRecalculate=Recalculer les totaux factures
 FactureSituationMigrationRecalculateConfirm=Recalculer les totaux de toutes les factures de situation ? Cette opération corrige les totaux corrompus par un update_price en mode 1.
 FactureSituationMigrationRecalcDone=%s factures recalculées avec succès

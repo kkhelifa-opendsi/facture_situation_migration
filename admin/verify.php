@@ -74,7 +74,7 @@ $search_year = GETPOSTINT('search_year');
 if (empty($search_status)) {
 	$search_status = 'all';
 }
-$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0');
 
 // Load variable for pagination
 $limit = GETPOSTINT('limit') ? GETPOSTINT('limit') : $conf->liste_limit;
@@ -161,7 +161,8 @@ $form = new Form($db);
 $help_url = '';
 $page_name = "FactureSituationMigrationTabVerification";
 
-llxHeader('', $langs->trans($page_name), $help_url);
+$arrayofjs = array('/facturesituationmigration/js/facturesituationmigration.js.php');
+llxHeader('', $langs->trans($page_name), $help_url, '', 0, 0, $arrayofjs);
 
 // Subheader
 $linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1">'.$langs->trans("BackToModuleList").'</a>';
@@ -291,11 +292,11 @@ if ($cycle_ref > 0) {
 			print '<td class="right nowraponall">'.price($info['backup']['total_ht']).'</td>';
 			print '<td class="right nowraponall">'.price($info['current']['total_ht']).'</td>';
 			print '<td class="right nowraponall">'.price($expected['total_ht']).'</td>';
-			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_ht_ok'], '0', price($info['ecart_ht'])).'</td>';
+			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_total_ht_ok'], '0', price($info['ecart_total_ht'])).'</td>';
 			print '<td class="right nowraponall">'.price($info['backup']['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.price($info['current']['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.price($expected['total_ttc']).'</td>';
-			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_ttc_ok'], '0', price($info['ecart_ttc'])).'</td>';
+			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_total_ttc_ok'], '0', price($info['ecart_total_ttc'])).'</td>';
 			print '<td class="center">'.FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error')).'</td>';
 			print '</tr>';
 
@@ -339,11 +340,11 @@ if ($cycle_ref > 0) {
 					print '<td class="right nowraponall">'.$line['backup']['situation_percent'].'%</td>';
 					print '<td class="right nowraponall">'.$line['current']['situation_percent'].'%</td>';
 					print '<td class="right nowraponall">'.$line_expected['situation_percent'].'%</td>';
-					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_pct_ok'], '0', $line['ecart_pct']).'</td>';
+					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_situation_percent_ok'], '0', $line['ecart_situation_percent']).'</td>';
 					print '<td class="right nowraponall">'.price($line['backup']['total_ht']).'</td>';
 					print '<td class="right nowraponall">'.price($line['current']['total_ht']).'</td>';
 					print '<td class="right nowraponall">'.price($line_expected['total_ht']).'</td>';
-					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_ht_ok'], '0', price($line['ecart_ht'])).'</td>';
+					print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($line['ecart_total_ht_ok'], '0', price($line['ecart_total_ht'])).'</td>';
 					print '<td class="center">'.FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error')).'</td>';
 					print '</tr>';
 				}
@@ -474,16 +475,18 @@ if ($cycle_ref > 0) {
 
 		// Action buttons
 		print '<div class="tabsAction tabsActionNoBottom">';
-		// Recalculate totals button (kept for manual troubleshooting if needed)
-		//if ($data['nb_error'] > 0) {
-		// print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-		// print '<input type="hidden" name="token" value="'.newToken().'">';
-		// print '<input type="hidden" name="action" value="recalculate">';
-		// print '<input type="submit" class="butActionDelete" value="'.$langs->trans('FactureSituationMigrationRecalculate').'" onclick="return confirm(\''.$langs->trans('FactureSituationMigrationRecalculateConfirm').'\')">';
-		// print '</form> ';
-		//}
+		// Re-verify all cycles button
+		print '<a class="butAction" href="#" id="btn-reverify">'.$langs->trans('FactureSituationMigrationReverifyAll').'</a>';
 		// Export CSV button
 		print '<a class="butAction" href="' . $_SERVER['PHP_SELF'] . '?action=export_csv&token=' . newToken() . $param . '">' . $langs->trans('FactureSituationMigrationExportCSV') . '</a>';
+		print '</div>';
+
+		// Re-verify progress (hidden by default)
+		print '<div id="reverify-progress" style="display:none; margin: 10px 0;">';
+		print '<div style="margin-bottom: 5px;"><span id="reverify-status"></span></div>';
+		print '<div style="background-color: #ddd; border-radius: 4px; height: 20px; width: 400px;">';
+		print '<div id="reverify-bar" style="background-color: #4caf50; height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s;"></div>';
+		print '</div>';
 		print '</div>';
 
 		print_barre_liste('', $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $nbtotalofrecords, '', 0, '', '', $limit);

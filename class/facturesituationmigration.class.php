@@ -1111,10 +1111,10 @@ class FactureSituationMigration
 	 * @param  string  		$sortorder      Sort order (ASC/DESC)
 	 * @param  int     		$limit          Max results
 	 * @param  int     		$offset         Offset for pagination
-	 * @param  float   		$tolerance      Rounding tolerance for deviation comparison (default 0.01)
+	 * @param  float   		$tolerance      Rounding tolerance for deviation comparison (default 0)
 	 * @return array|bool                   false if errors otherwise array with keys: cycles, total, nb_ok, nb_error, nb_not_migrated
 	 */
-	public function getVerificationCyclesList($search_status = 'all', $search_year = 0, $sortfield = 'cycle_ref', $sortorder = 'ASC', $limit = 0, $offset = 0, $tolerance = 0.01)
+	public function getVerificationCyclesList($search_status = 'all', $search_year = 0, $sortfield = 'cycle_ref', $sortorder = 'ASC', $limit = 0, $offset = 0, $tolerance = 0)
 	{
 		$result = array('cycles' => array(), 'total' => 0, 'nb_ok' => 0, 'nb_error' => 0, 'nb_not_migrated' => 0);
 
@@ -1278,13 +1278,13 @@ class FactureSituationMigration
 	 * On SQL error, $this->error is populated and the method returns false.
 	 *
 	 * @param  int         $cycle_ref  Situation cycle reference
-	 * @param  float       $tolerance  Rounding tolerance for ecart flags (default from constant or 0.01)
+	 * @param  float       $tolerance  Rounding tolerance for ecart flags (default from constant or 0)
 	 * @return array|false             Array keyed by situation_counter, or false on SQL error
 	 */
 	public function getVerificationCycleDetail($cycle_ref, $tolerance = -1)
 	{
 		if ($tolerance < 0) {
-			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0');
 		}
 		global $langs;
 		$langs->load('facturesituationmigration@facturesituationmigration');
@@ -1450,30 +1450,35 @@ class FactureSituationMigration
 		foreach ($counters as $idx => $counter) {
 			$detail[$counter]['expected'] = $detail[$counter]['backup'];
 
+			// Per-facture ecart flags on ALL migrated amounts
 			$expected = $detail[$counter]['expected'];
-			$ecart_ht = round($detail[$counter]['current']['total_ht'] - $expected['total_ht'], 2);
-			$ecart_ttc = round($detail[$counter]['current']['total_ttc'] - $expected['total_ttc'], 2);
-			$ecart_ht_ok = (abs($ecart_ht) <= $tolerance);
-			$ecart_ttc_ok = (abs($ecart_ttc) <= $tolerance);
-			$facture_ok = ($ecart_ht_ok && $ecart_ttc_ok);
+			$facture_ok = true;
 
-			$detail[$counter]['ecart_ht'] = $ecart_ht;
-			$detail[$counter]['ecart_ttc'] = $ecart_ttc;
-			$detail[$counter]['ecart_ht_ok'] = $ecart_ht_ok;
-			$detail[$counter]['ecart_ttc_ok'] = $ecart_ttc_ok;
+			$facture_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+			foreach ($facture_fields as $field) {
+				$ecart = round($detail[$counter]['current'][$field] - $expected[$field], 2);
+				$ecart_ok = (abs($ecart) <= $tolerance);
+				$detail[$counter]['ecart_'.$field] = $ecart;
+				$detail[$counter]['ecart_'.$field.'_ok'] = $ecart_ok;
+				if (!$ecart_ok) {
+					$facture_ok = false;
+				}
+			}
 
-			// Per-line ecart flags
+			// Per-line ecart flags on ALL migrated amounts
+			$line_fields = array('situation_percent', 'total_ht', 'total_tva', 'total_ttc', 'total_localtax1', 'total_localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 			foreach ($detail[$counter]['lines'] as $line_id => &$line) {
 				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
-				$ecart_pct = round($line['current']['situation_percent'] - $line_expected['situation_percent'], 2);
-				$ecart_line_ht = round($line['current']['total_ht'] - $line_expected['total_ht'], 2);
-
-				$line['ecart_pct'] = $ecart_pct;
-				$line['ecart_ht'] = $ecart_line_ht;
-				$line['ecart_pct_ok'] = (abs($ecart_pct) <= $tolerance);
-				$line['ecart_ht_ok'] = (abs($ecart_line_ht) <= $tolerance);
-				$line['line_ok'] = ($line['ecart_pct_ok'] && $line['ecart_ht_ok']);
-
+				$line['line_ok'] = true;
+				foreach ($line_fields as $field) {
+					$ecart = round($line['current'][$field] - $line_expected[$field], 2);
+					$ecart_ok = (abs($ecart) <= $tolerance);
+					$line['ecart_'.$field] = $ecart;
+					$line['ecart_'.$field.'_ok'] = $ecart_ok;
+					if (!$ecart_ok) {
+						$line['line_ok'] = false;
+					}
+				}
 				if (!$line['line_ok']) {
 					$facture_ok = false;
 				}
@@ -1496,14 +1501,14 @@ class FactureSituationMigration
 	 * 4. Situation 1 lines unchanged (backup == current)
 	 *
 	 * @param  int    $cycle_ref  Situation cycle reference
-	 * @param  float  $tolerance  Rounding tolerance (default from constant or 0.01)
+	 * @param  float  $tolerance  Rounding tolerance (default from constant or 0)
 	 * @param  array  $detail     Pre-loaded detail from getVerificationCycleDetail() (null = auto-load)
 	 * @return array              Array of check results
 	 */
 	public function getCoherenceChecks($cycle_ref, $tolerance = -1, $detail = null)
 	{
 		if ($tolerance < 0) {
-			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0');
 		}
 		if ($detail === null) {
 			$detail = $this->getVerificationCycleDetail($cycle_ref, $tolerance);
@@ -1517,13 +1522,20 @@ class FactureSituationMigration
 		$counters = array_keys($detail);
 		sort($counters);
 
-		// Check 0: Per-facture ecart (uses flags already computed by getVerificationCycleDetail)
+		// Check 0: Per-facture ecart on ALL migrated amounts (facture level only, not lines)
 		$check0_ok = true;
 		$check0_details = '';
+		$facture_ecart_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 		foreach ($detail as $counter => $info) {
-			if (!$info['ecart_ht_ok'] || !$info['ecart_ttc_ok']) {
+			$fac_ecarts = array();
+			foreach ($facture_ecart_fields as $field) {
+				if (!$info['ecart_'.$field.'_ok']) {
+					$fac_ecarts[] = $field.'='.$info['ecart_'.$field];
+				}
+			}
+			if (!empty($fac_ecarts)) {
 				$check0_ok = false;
-				$check0_details .= $info['ref'].' (sit '.$counter.'): ecart_ht='.$info['ecart_ht'].', ecart_ttc='.$info['ecart_ttc'].'. ';
+				$check0_details .= $info['ref'].' (sit '.$counter.'): '.implode(', ', $fac_ecarts).'. ';
 			}
 		}
 		$checks[] = array(
@@ -1643,13 +1655,13 @@ class FactureSituationMigration
 	 * so both code paths run the exact same checks.
 	 *
 	 * @param  int          $cycle_ref  Situation cycle reference
-	 * @param  float        $tolerance  Rounding tolerance (default from constant or 0.01)
+	 * @param  float        $tolerance  Rounding tolerance (default from constant or 0)
 	 * @return array|false              array('ok' => bool, 'detail' => array, 'checks' => array), or false on SQL error ($this->error is set)
 	 */
 	public function verifyCycle($cycle_ref, $tolerance = -1)
 	{
 		if ($tolerance < 0) {
-			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0');
 		}
 
 		$all_ok = true;
@@ -1671,5 +1683,90 @@ class FactureSituationMigration
 		}
 
 		return array('ok' => $all_ok, 'detail' => $detail, 'checks' => $checks);
+	}
+
+	/**
+	 * Re-verify a batch of already-migrated cycles.
+	 *
+	 * Selects cycles with status != 0 (already migrated) starting after $last_cycle_ref,
+	 * runs verifyCycle() on each, updates the status (1=OK, -1=error).
+	 * Designed to be called repeatedly via AJAX until 'done' is true.
+	 *
+	 * @param  int    $batch_size      Number of cycles to process per call (default 10)
+	 * @param  int    $last_cycle_ref  Last cycle_ref processed (0 = start from beginning)
+	 * @return array                   array('processed' => int, 'remaining' => int, 'last_cycle_ref' => int, 'errors' => array, 'done' => bool)
+	 */
+	public function reverifyBatch($batch_size = 10, $last_cycle_ref = 0)
+	{
+		$result = array('processed' => 0, 'remaining' => 0, 'last_cycle_ref' => (int) $last_cycle_ref, 'errors' => array(), 'done' => false);
+
+		$entityList = getEntity('facture');
+		$batch_size = max(1, (int) $batch_size);
+		$last_cycle_ref = (int) $last_cycle_ref;
+
+		// Count total remaining (from cursor position)
+		$sql_count = "SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql_count .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql_count .= " AND status != 0";
+		$sql_count .= " AND entity IN (".$entityList.")";
+
+		$resql = $this->db->query($sql_count);
+		if (!$resql) {
+			$result['errors'][] = $this->db->lasterror();
+			$result['done'] = true;
+			return $result;
+		}
+		if ($obj = $this->db->fetch_object($resql)) {
+			$result['remaining'] = (int) $obj->nb;
+		}
+		$this->db->free($resql);
+
+		if ($result['remaining'] == 0) {
+			$result['done'] = true;
+			return $result;
+		}
+
+		// Get batch of cycles to re-verify
+		$sql = "SELECT situation_cycle_ref FROM ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql .= " AND status != 0";
+		$sql .= " AND entity IN (".$entityList.")";
+		$sql .= " ORDER BY situation_cycle_ref ASC";
+		$sql .= " LIMIT ".((int) $batch_size);
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$result['errors'][] = $this->db->lasterror();
+			$result['done'] = true;
+			return $result;
+		}
+
+		$cycles = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$cycles[] = (int) $obj->situation_cycle_ref;
+		}
+		$this->db->free($resql);
+
+		// Process each cycle
+		foreach ($cycles as $cycle_ref) {
+			$verify = $this->verifyCycle($cycle_ref);
+			if ($verify === false) {
+				// SQL error during verification
+				$result['errors'][] = $this->error;
+			} else {
+				if ($verify['ok']) {
+					$this->setCycleSuccessful($cycle_ref);
+				} else {
+					$this->setCycleError($cycle_ref);
+				}
+			}
+			$result['processed']++;
+			$result['last_cycle_ref'] = $cycle_ref;
+		}
+
+		$result['remaining'] -= $result['processed'];
+		$result['done'] = ($result['remaining'] <= 0);
+
+		return $result;
 	}
 }

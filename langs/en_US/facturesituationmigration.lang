@@ -29,7 +29,7 @@ FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 Settings = Settings
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
-FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Rounding tolerance for the verification page (default 0.01)
+FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Rounding tolerance for the verification page (default 0)
 
 #
 # About page
@@ -100,6 +100,9 @@ FactureSituationMigrationHideLines=Hide lines
 FactureSituationMigrationYear=Year
 FactureSituationMigrationAllYears=All
 FactureSituationMigrationBackToList=Back to list
+FactureSituationMigrationReverifyAll=Re-verify all cycles
+FactureSituationMigrationReverifyConfirm=Re-run verification on all migrated cycles? This operation may take some time.
+FactureSituationMigrationReverifyDone=Re-verification completed
 FactureSituationMigrationRecalculate=Recalculate invoice totals
 FactureSituationMigrationRecalculateConfirm=Recalculate totals for all situation invoices? This fixes totals corrupted by update_price running in mode 1.
 FactureSituationMigrationRecalcDone=%s invoices recalculated successfully

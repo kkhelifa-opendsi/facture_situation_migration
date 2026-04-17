@@ -93,7 +93,7 @@ $form = new Form($db);
 
 $formSetup->newItem('FACTURESITUATIONMIGRATION_CURRENT_YEAR')->setAsYesNo();
 $item_tolerance = $formSetup->newItem('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE');
-$item_tolerance->defaultFieldValue = '0.01';
+$item_tolerance->defaultFieldValue = '0';
 
 $setupnotempty += count($formSetup->items);
 
