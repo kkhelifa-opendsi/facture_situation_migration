@@ -191,9 +191,47 @@ if ($cycle_ref > 0) {
 	// DETAIL VIEW
 	// ========================================
 
-	// Back link
-	print '<a href="' . $backtopage . '" class="butAction">' . $langs->trans('FactureSituationMigrationBackToList') . '</a>';
-	print '<br><br>';
+	// Navigation: back + prev/next
+	$adjacent = $migration->getAdjacentCycles($cycle_ref, $search_status, $search_year, $sortfield, $sortorder);
+
+	// Build base URL for prev/next (preserve filters)
+	$nav_params = '';
+	if ($search_status != 'all') {
+		$nav_params .= '&search_status='.urlencode($search_status);
+	}
+	if ($search_year > 0) {
+		$nav_params .= '&search_year='.$search_year;
+	}
+	if ($sortfield != 'cycle_ref') {
+		$nav_params .= '&sortfield='.urlencode($sortfield);
+	}
+	if ($sortorder != 'ASC') {
+		$nav_params .= '&sortorder='.urlencode($sortorder);
+	}
+	if (!empty($backtopage)) {
+		$nav_params .= '&backtopage='.urlencode($backtopage);
+	}
+
+	print '<div class="pagination">';
+	// Previous
+	if ($adjacent['prev'] !== null) {
+		print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$nav_params.'">';
+		print '<i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous');
+		print '</a> ';
+	} else {
+		print '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Previous').'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</span> ';
+	}
+	// Back to list
+	print '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a> ';
+	// Next
+	if ($adjacent['next'] !== null) {
+		print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$nav_params.'">';
+		print $langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i>';
+		print '</a>';
+	} else {
+		print '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Next').'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></span>';
+	}
+	print '</div>';
 
 	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref));
 
@@ -528,7 +566,7 @@ if ($cycle_ref > 0) {
 				print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($cycle['ecart_ttc_ok'], '0', price($cycle['ecart_ttc'])) . '</td>';
 				print '<td class="center">' . FactureSituationMigration::badgeStatus($cycle['status_ok'], 'OK', $langs->trans('Error')) . '</td>';
 				print '<td class="center">';
-				print '<a href="' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $cycle['cycle_ref'] . '&backtopage=' . urlencode($_SERVER['PHP_SELF'] . "?page=" . $page . "&sortfield=" . $sortfield . "&sortorder=" . $sortorder . $param) . '">';
+				print '<a href="' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $cycle['cycle_ref'] . $param . '&sortfield=' . urlencode($sortfield) . '&sortorder=' . urlencode($sortorder) . '&backtopage=' . urlencode($_SERVER['PHP_SELF'] . "?page=" . urlencode($page) . "&sortfield=" . urlencode($sortfield) . '&sortorder=' . urlencode($sortorder) . $param) . '">';
 				print '<i class="fas fa-search"></i>';
 				print '</a>';
 				print '</td>';

@@ -1687,6 +1687,93 @@ class FactureSituationMigration
 	}
 
 	/**
+	 * Get the previous and next cycle_ref relative to the given one,
+	 * applying the same filters as the verification list page.
+	 *
+	 * @param  int    $cycle_ref      Current cycle reference
+	 * @param  string $search_status  Filter: 'all', 'ok', 'error', 'migrated', 'not_migrated'
+	 * @param  int    $search_year    Filter by year (0 = all)
+	 * @param  string $sortfield      Sort field (default 'cycle_ref')
+	 * @param  string $sortorder      Sort order ASC/DESC (default 'ASC')
+	 * @return array                  array('prev' => int|null, 'next' => int|null)
+	 */
+	public function getAdjacentCycles($cycle_ref, $search_status = 'all', $search_year = 0, $sortfield = 'cycle_ref', $sortorder = 'ASC')
+	{
+		$result = array('prev' => null, 'next' => null);
+
+		$entityList = getEntity('facture');
+		$cycle_ref = (int) $cycle_ref;
+		$search_year = (int) $search_year;
+
+		// Whitelist sortfield
+		$sort_columns = array('cycle_ref', 'nb_factures', 'year', 'ecart_ht', 'ecart_ttc', 'status_ok');
+		if (!in_array($sortfield, $sort_columns)) {
+			$sortfield = 'cycle_ref';
+		}
+		$sortorder = (strtoupper($sortorder) == 'DESC') ? 'DESC' : 'ASC';
+
+		$from_where = " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
+		$from_where .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
+		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON m.situation_cycle_ref = bk.situation_cycle_ref AND m.entity IN (".$entityList.")";
+		$from_where .= " WHERE COALESCE(bk.situation_cycle_ref, 0) > 0";
+		$from_where .= " AND bk.entity IN (".$entityList.")";
+
+		// HAVING clause (same as getVerificationCyclesList)
+		$having = '';
+		if ($search_year > 0) {
+			$having .= " AND MAX(EXTRACT(YEAR FROM bk.datef)) = ".$search_year;
+		}
+		if ($search_status == 'ok') {
+			$having .= " AND MIN(COALESCE(m.status, 0)) = 1";
+		} elseif ($search_status == 'error') {
+			$having .= " AND MIN(COALESCE(m.status, 0)) = -1";
+		} elseif ($search_status == 'migrated') {
+			$having .= " AND MIN(COALESCE(m.status, 0)) != 0";
+		} elseif ($search_status == 'not_migrated') {
+			$having .= " AND MIN(COALESCE(m.status, 0)) = 0";
+		}
+		if ($having != '') {
+			$having = ' HAVING 1=1'.$having;
+		}
+
+		// Build ordered subquery of all matching cycle_refs
+		$sub = "SELECT bk.situation_cycle_ref as cycle_ref";
+		$sub .= $from_where;
+		$sub .= " GROUP BY bk.situation_cycle_ref";
+		$sub .= $having;
+		$sub .= " ORDER BY ".$sortfield." ".$sortorder;
+
+		// Previous: last cycle before current in sort order
+		if ($sortorder == 'ASC') {
+			$sql_prev = "SELECT cycle_ref FROM (".$sub.") as sub_prev WHERE cycle_ref < ".$cycle_ref." ORDER BY cycle_ref DESC LIMIT 1";
+			$sql_next = "SELECT cycle_ref FROM (".$sub.") as sub_next WHERE cycle_ref > ".$cycle_ref." ORDER BY cycle_ref ASC LIMIT 1";
+		} else {
+			$sql_prev = "SELECT cycle_ref FROM (".$sub.") as sub_prev WHERE cycle_ref > ".$cycle_ref." ORDER BY cycle_ref ASC LIMIT 1";
+			$sql_next = "SELECT cycle_ref FROM (".$sub.") as sub_next WHERE cycle_ref < ".$cycle_ref." ORDER BY cycle_ref DESC LIMIT 1";
+		}
+
+		$resql = $this->db->query($sql_prev);
+		if ($resql) {
+			$obj = $this->db->fetch_object($resql);
+			if ($obj) {
+				$result['prev'] = (int) $obj->cycle_ref;
+			}
+			$this->db->free($resql);
+		}
+
+		$resql = $this->db->query($sql_next);
+		if ($resql) {
+			$obj = $this->db->fetch_object($resql);
+			if ($obj) {
+				$result['next'] = (int) $obj->cycle_ref;
+			}
+			$this->db->free($resql);
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Re-verify a batch of already-migrated cycles.
 	 *
 	 * Selects cycles with status != 0 (already migrated) starting after $last_cycle_ref,
