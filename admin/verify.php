@@ -285,7 +285,7 @@ if ($cycle_ref > 0) {
 		foreach ($detail as $counter => $info) {
 			$idxInvoice++;
 			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
-			$row_class = $info['row_ok'] ? '' : ' style="background-color: #fdd;"';
+			$row_class = $info['facture_ok'] ? '' : ' style="background-color: #fdd;"';
 
 			$facture_static = new Facture($db);
 			$facture_static->id = $info['facture_id'];
@@ -304,7 +304,7 @@ if ($cycle_ref > 0) {
 			print '<td class="right nowraponall">'.price($info['current']['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.price($expected['total_ttc']).'</td>';
 			print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($info['ecart_ttc_ok'], '0', price($info['ecart_ttc'])).'</td>';
-			print '<td class="center">'.FactureSituationMigration::badgeStatus($info['row_ok'], 'OK', $langs->trans('Error')).'</td>';
+			print '<td class="center">'.FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error')).'</td>';
 			print '</tr>';
 
 			// Lines (toggle)

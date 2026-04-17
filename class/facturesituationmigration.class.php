@@ -1478,10 +1478,14 @@ class FactureSituationMigration
 	 * On SQL error, $this->error is populated and the method returns false.
 	 *
 	 * @param  int         $cycle_ref  Situation cycle reference
+	 * @param  float       $tolerance  Rounding tolerance for ecart flags (default from constant or 0.01)
 	 * @return array|false             Array keyed by situation_counter, or false on SQL error
 	 */
-	public function getVerificationCycleDetail($cycle_ref)
+	public function getVerificationCycleDetail($cycle_ref, $tolerance = -1)
 	{
+		if ($tolerance < 0) {
+			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
+		}
 		global $langs;
 		$langs->load('facturesituationmigration@facturesituationmigration');
 
@@ -1642,8 +1646,41 @@ class FactureSituationMigration
 		// Expected invoice totals: backup facture totals were already deltas in
 		// mode 1 (update_price subtracted previous invoices). So after migration,
 		// the current total should simply equal the backup total for all situations.
+		// Also compute ecart values and flags for the view layer.
 		foreach ($counters as $idx => $counter) {
 			$detail[$counter]['expected'] = $detail[$counter]['backup'];
+
+			$expected = $detail[$counter]['expected'];
+			$ecart_ht = round($detail[$counter]['current']['total_ht'] - $expected['total_ht'], 2);
+			$ecart_ttc = round($detail[$counter]['current']['total_ttc'] - $expected['total_ttc'], 2);
+			$ecart_ht_ok = (abs($ecart_ht) <= $tolerance);
+			$ecart_ttc_ok = (abs($ecart_ttc) <= $tolerance);
+			$facture_ok = ($ecart_ht_ok && $ecart_ttc_ok);
+
+			$detail[$counter]['ecart_ht'] = $ecart_ht;
+			$detail[$counter]['ecart_ttc'] = $ecart_ttc;
+			$detail[$counter]['ecart_ht_ok'] = $ecart_ht_ok;
+			$detail[$counter]['ecart_ttc_ok'] = $ecart_ttc_ok;
+
+			// Per-line ecart flags
+			foreach ($detail[$counter]['lines'] as $line_id => &$line) {
+				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
+				$ecart_pct = round($line['current']['situation_percent'] - $line_expected['situation_percent'], 2);
+				$ecart_line_ht = round($line['current']['total_ht'] - $line_expected['total_ht'], 2);
+
+				$line['ecart_pct'] = $ecart_pct;
+				$line['ecart_ht'] = $ecart_line_ht;
+				$line['ecart_pct_ok'] = (abs($ecart_pct) <= $tolerance);
+				$line['ecart_ht_ok'] = (abs($ecart_line_ht) <= $tolerance);
+				$line['line_ok'] = ($line['ecart_pct_ok'] && $line['ecart_ht_ok']);
+
+				if (!$line['line_ok']) {
+					$facture_ok = false;
+				}
+			}
+			unset($line);
+
+			$detail[$counter]['facture_ok'] = $facture_ok;
 		}
 
 		return $detail;
@@ -1669,7 +1706,7 @@ class FactureSituationMigration
 			$tolerance = (float) getDolGlobalString('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE', '0.01');
 		}
 		if ($detail === null) {
-			$detail = $this->getVerificationCycleDetail($cycle_ref);
+			$detail = $this->getVerificationCycleDetail($cycle_ref, $tolerance);
 		}
 		if ($detail === false) {
 			return array(
@@ -1679,6 +1716,21 @@ class FactureSituationMigration
 		$checks = array();
 		$counters = array_keys($detail);
 		sort($counters);
+
+		// Check 0: Per-facture ecart (uses flags already computed by getVerificationCycleDetail)
+		$check0_ok = true;
+		$check0_details = '';
+		foreach ($detail as $counter => $info) {
+			if (!$info['ecart_ht_ok'] || !$info['ecart_ttc_ok']) {
+				$check0_ok = false;
+				$check0_details .= $info['ref'].' (sit '.$counter.'): ecart_ht='.$info['ecart_ht'].', ecart_ttc='.$info['ecart_ttc'].'. ';
+			}
+		}
+		$checks[] = array(
+			'label' => 'InvoiceTotalsMatchBackup',
+			'ok' => $check0_ok,
+			'details' => $check0_ok ? '' : $check0_details,
+		);
 
 		// Check 1: Sum of current percent deltas = backup percent of last situation
 		$check1_ok = true;
@@ -1803,75 +1855,20 @@ class FactureSituationMigration
 		$all_ok = true;
 
 		// Load all detail data once (invoices + lines, backup vs current)
-		$detail = $this->getVerificationCycleDetail($cycle_ref);
+		$detail = $this->getVerificationCycleDetail($cycle_ref, $tolerance);
 		if ($detail === false) {
 			// SQL error — $this->error is already set by getVerificationCycleDetail
 			return false;
 		}
 
-		// Per-facture ecart check (backup total vs current total)
-		// Enriches $detail with computed ecart values and flags for the view layer.
-		$check_fac_ok = true;
-		$check_fac_details = '';
-		foreach ($detail as $counter => &$info) {
-			$expected = isset($info['expected']) ? $info['expected'] : $info['backup'];
-			$ecart_ht = round($info['current']['total_ht'] - $expected['total_ht'], 2);
-			$ecart_ttc = round($info['current']['total_ttc'] - $expected['total_ttc'], 2);
-			$ecart_ht_ok = (abs($ecart_ht) <= $tolerance);
-			$ecart_ttc_ok = (abs($ecart_ttc) <= $tolerance);
-			$row_ok = ($ecart_ht_ok && $ecart_ttc_ok);
-
-			$info['ecart_ht'] = $ecart_ht;
-			$info['ecart_ttc'] = $ecart_ttc;
-			$info['ecart_ht_ok'] = $ecart_ht_ok;
-			$info['ecart_ttc_ok'] = $ecart_ttc_ok;
-
-			// Per-line ecart flags
-			foreach ($info['lines'] as $line_id => &$line) {
-				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
-				$ecart_pct = round($line['current']['situation_percent'] - $line_expected['situation_percent'], 2);
-				$ecart_line_ht = round($line['current']['total_ht'] - $line_expected['total_ht'], 2);
-
-				$line['ecart_pct'] = $ecart_pct;
-				$line['ecart_ht'] = $ecart_line_ht;
-				$line['ecart_pct_ok'] = (abs($ecart_pct) <= $tolerance);
-				$line['ecart_ht_ok'] = (abs($ecart_line_ht) <= $tolerance);
-				$line['line_ok'] = ($line['ecart_pct_ok'] && $line['ecart_ht_ok']);
-
-				if (!$line['line_ok']) {
-					$row_ok = false;
-				}
-			}
-			unset($line);
-
-			$info['row_ok'] = $row_ok;
-
-			if (!$row_ok) {
-				$check_fac_ok = false;
-				$check_fac_details .= $info['ref'].' (sit '.$counter.'): ecart_ht='.$ecart_ht.', ecart_ttc='.$ecart_ttc.'. ';
-			}
-		}
-		unset($info);
-		if (!$check_fac_ok) {
-			$all_ok = false;
-		}
-
-		// 4 coherence checks (reuse the already-loaded detail)
-		$coherence_checks = $this->getCoherenceChecks($cycle_ref, $tolerance, $detail);
-		foreach ($coherence_checks as $check) {
+		// Ecart values and flags are already computed by getVerificationCycleDetail().
+		// All checks (including InvoiceTotalsMatchBackup) via getCoherenceChecks
+		$checks = $this->getCoherenceChecks($cycle_ref, $tolerance, $detail);
+		foreach ($checks as $check) {
 			if (!$check['ok']) {
 				$all_ok = false;
 			}
 		}
-
-		// Assemble: facture ecart check first, then the 4 coherence checks
-		$checks = array();
-		$checks[] = array(
-			'label' => 'InvoiceTotalsMatchBackup',
-			'ok' => $check_fac_ok,
-			'details' => $check_fac_ok ? '' : $check_fac_details,
-		);
-		$checks = array_merge($checks, $coherence_checks);
 
 		return array('ok' => $all_ok, 'detail' => $detail, 'checks' => $checks);
 	}
