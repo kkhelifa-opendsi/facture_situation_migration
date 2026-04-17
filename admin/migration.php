@@ -142,10 +142,8 @@ switch ($action) {
 				setEventMessages($migration->error, null, 'errors');
 			} elseif ($count_todo == 0) {
 				dolibarr_set_const($db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
-				dolibarr_set_const($db, 'INVOICE_USE_SITUATION', '2', 'chaine', 0, '', $conf->entity);
 
 				dol_syslog('constant MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=3', LOG_DEBUG, 0, '_situationmigration');
-				dol_syslog('constant INVOICE_USE_SITUATION=2', LOG_DEBUG, 0, '_situationmigration');
 
 				$step_migration = 3;
 				setEventMessages($langs->trans('FactureSituationMigrationStep3Done'), null, 'mesgs');
@@ -178,9 +176,11 @@ switch ($action) {
 			// Confirm migration
 			$result_confirm = $migration->confirmMigration();
 			if ($result_confirm > 0) {
+				dolibarr_set_const($db, 'INVOICE_USE_SITUATION', '2', 'chaine', 0, '', $conf->entity);
 				dolibarr_set_const($db, 'FACTURESITUATIONMIGRATION_ISDONE', '1', 'chaine', 0, '', $conf->entity);
 				dolibarr_set_const($db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '4', 'chaine', 0, '', $conf->entity);
 
+				dol_syslog('constant INVOICE_USE_SITUATION=2', LOG_DEBUG, 0, '_situationmigration');
 				dol_syslog('constant FACTURESITUATIONMIGRATION_ISDONE=1', LOG_DEBUG, 0, '_situationmigration');
 				dol_syslog('constant MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=4', LOG_DEBUG, 0, '_situationmigration');
 

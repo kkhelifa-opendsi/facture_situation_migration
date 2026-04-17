@@ -890,19 +890,7 @@ class FactureSituationMigration
 			$this->db->rollback();
 			return -3;
 		}
-		if (!dolibarr_set_const($this->db, 'FACTURESITUATIONMIGRATION_ISDONE', '0', 'chaine', 0, '', $conf->entity)) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackSetConst', 'FACTURESITUATIONMIGRATION_ISDONE');
-			dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -3;
-		}
-		if (!dolibarr_set_const($this->db, 'INVOICE_USE_SITUATION', '1', 'chaine', 0, '', $conf->entity)) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorRollbackSetConst', 'INVOICE_USE_SITUATION');
-			dol_syslog($this->error, LOG_ERR, 0, '_situationmigration');
-			$this->db->rollback();
-			return -3;
-		}
-		dol_syslog('Reset MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=0 || FACTURESITUATIONMIGRATION_ISDONE=0 || INVOICE_USE_SITUATION=1', LOG_DEBUG, 0, '_situationmigration');
+		dol_syslog('Reset MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=0', LOG_DEBUG, 0, '_situationmigration');
 
 		// VIDER LES TABLES MIGRATION ET BACKUP (scoped to current entity sharing)
 		$sql_migration = "DELETE FROM " . MAIN_DB_PREFIX . $this->table_migration;
