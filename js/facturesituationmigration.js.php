@@ -45,7 +45,30 @@ if (!defined('NOREQUIREAJAX')) {
 
 session_cache_limiter('public');
 
-require_once '../../main.inc.php';
+// Load Dolibarr environment
+$res = 0;
+if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
+	$res = @include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
+}
+$tmp = empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME']; $tmp2 = realpath(__FILE__); $i = strlen($tmp) - 1; $j = strlen($tmp2) - 1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i] == $tmp2[$j]) {
+	$i--; $j--;
+}
+if (!$res && $i > 0 && file_exists(substr($tmp, 0, ($i + 1))."/main.inc.php")) {
+	$res = @include substr($tmp, 0, ($i + 1))."/main.inc.php";
+}
+if (!$res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php")) {
+	$res = @include dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php";
+}
+if (!$res && file_exists("../../main.inc.php")) {
+	$res = @include "../../main.inc.php";
+}
+if (!$res && file_exists("../../../main.inc.php")) {
+	$res = @include "../../../main.inc.php";
+}
+if (!$res) {
+	die("Include of main fails");
+}
 
 $langs->loadLangs(array('facturesituationmigration@facturesituationmigration'));
 
@@ -134,7 +157,7 @@ if (empty($dolibarr_nocache)) {
 				},
 				error: function(xhr) {
 					$.jnotify(self.trans.error + ': ' + xhr.statusText, 'error', true);
-					$('#reverify-bar').addClass('fsm-progress-error');
+					$('#reverify-bar').removeClass('progress-bar-success').addClass('progress-bar-danger');
 					$('#btn-reverify').addClass('butAction').removeClass('butActionRefused');
 				}
 			});
@@ -163,7 +186,8 @@ if (empty($dolibarr_nocache)) {
 
 			// Update progress bar
 			var pct = this.totalToProcess > 0 ? Math.round((this.totalProcessed / this.totalToProcess) * 100) : 0;
-			$('#reverify-bar').css('width', pct + '%');
+			$('#reverify-bar').css('width', pct + '%').attr('aria-valuenow', pct);
+			$('#reverify-progress-bar').attr('title', pct + '%');
 			$('#reverify-status').text(this.totalProcessed + ' / ' + this.totalToProcess + ' (' + pct + '%)');
 
 			if (data.done) {
@@ -188,7 +212,7 @@ if (empty($dolibarr_nocache)) {
 
 			if (this.totalErrors > 0) {
 				// Errors occurred: don't reload (errors would be lost), re-enable button
-				$('#reverify-bar').addClass('fsm-progress-warning');
+				$('#reverify-bar').removeClass('progress-bar-success').addClass('progress-bar-warning');
 				$('#btn-reverify').addClass('butAction').removeClass('butActionRefused');
 			} else {
 				// All OK: reload page to refresh the list

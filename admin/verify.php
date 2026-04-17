@@ -171,7 +171,7 @@ print load_fiche_titre($langs->trans($page_name), $linkback, 'title_setup');
 
 // Configuration header
 $head = facturesituationmigrationAdminPrepareHead();
-print dol_get_fiche_head($head, 'verify', $langs->trans($page_name), -1, "facturesituationmigration@facturesituationmigration");
+print dol_get_fiche_head($head, 'verify', $langs->trans($page_name), -1, "");
 
 print '<span class="opacitymedium">'.$langs->trans("FactureSituationMigrationVerificationPage").'</span><br>';
 print '<span class="opacitymedium">'.$langs->trans('FactureSituationMigrationToleranceNote', $tolerance).'</span><br>';
@@ -410,21 +410,21 @@ if ($cycle_ref > 0) {
 		print '<table class="border centpercent tableforfield">';
 		print '<tr><td class="titlefield">' . $langs->trans('FactureSituationMigrationNbCycles', $nb_total) . '</td>';
 		print '<td>';
-		print '<span class="badge badge-status4 badge-status">' . $langs->trans('FactureSituationMigrationCyclesOk', $data['nb_ok']) . '</span> ';
+		print dolGetBadge($langs->trans('FactureSituationMigrationCyclesOk', $data['nb_ok']), '', 'status4', 'status').' ';
 		if ($data['nb_error'] > 0) {
-			print '<span class="badge badge-status8 badge-status">' . $langs->trans('FactureSituationMigrationCyclesWithErrors', $data['nb_error']) . '</span>';
+			print dolGetBadge($langs->trans('FactureSituationMigrationCyclesWithErrors', $data['nb_error']), '', 'status8', 'status');
 		}
 		if ($data['nb_not_migrated'] > 0) {
-			print '<span class="badge badge-status0 badge-status">' . $langs->trans('FactureSituationMigrationCyclesNotMigrated', $data['nb_not_migrated']) . '</span>';
+			print dolGetBadge($langs->trans('FactureSituationMigrationCyclesNotMigrated', $data['nb_not_migrated']), '', 'status0', 'status');
 		}
 		print '</td></tr>';
 		// Progress bar
 		if ($nb_total > 0) {
 			$pct_ok = round(($data['nb_ok'] / $nb_total) * 100);
 			print '<tr><td></td><td>';
-			print '<div class="fsm-summary-progress-track">';
-			print '<div class="fsm-summary-progress-bar" style="width: ' . $pct_ok . '%;"></div>';
-			print '</div> ' . $pct_ok . '%';
+			print '<div class="progress progress-striped" title="' . $pct_ok . '%">';
+			print '<div class="progress-bar progress-bar-success" role="progressbar" style="width: ' . $pct_ok . '%" aria-valuenow="' . $pct_ok . '" aria-valuemin="0" aria-valuemax="100"></div>';
+			print '</div>';
 			print '</td></tr>';
 		}
 		print '</table>';
@@ -443,18 +443,18 @@ if ($cycle_ref > 0) {
 
 		// Status filter
 		print '<label for="search_status">' . $langs->trans('FactureSituationMigrationStatus') . ':</label> ';
-		print '<select name="search_status" id="search_status" class="flat">';
-		print '<option value="all"' . ($search_status == 'all' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterAll') . '</option>';
-		print '<option value="migrated"' . ($search_status == 'migrated' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterMigrated') . '</option>';
-		print '<option value="not_migrated"' . ($search_status == 'not_migrated' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterNotMigrated') . '</option>';
-		print '<option value="ok"' . ($search_status == 'ok' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterOk') . '</option>';
-		print '<option value="error"' . ($search_status == 'error' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterErrors') . '</option>';
-		print '</select>';
+		$status_options = array(
+			'all' => $langs->trans('FactureSituationMigrationFilterAll'),
+			'migrated' => $langs->trans('FactureSituationMigrationFilterMigrated'),
+			'not_migrated' => $langs->trans('FactureSituationMigrationFilterNotMigrated'),
+			'ok' => $langs->trans('FactureSituationMigrationFilterOk'),
+			'error' => $langs->trans('FactureSituationMigrationFilterErrors'),
+		);
+		print $form->selectarray('search_status', $status_options, $search_status, 0, 0, 0, '', 0, 0, 0, '', 'flat minwidth100');
 
 		// Year filter
 		print ' <label for="search_year">' . $langs->trans('FactureSituationMigrationYear') . ':</label> ';
 		print '<input type="text" name="search_year" id="search_year" value="' . ($search_year > 0 ? $search_year : '') . '" size="4" class="flat" placeholder="' . $langs->trans('FactureSituationMigrationAllYears') . '">';
-
 		print ' <input type="submit" class="button small" value="' . $langs->trans('Search') . '">';
 		print '</div>';
 		print '</div>';
@@ -485,8 +485,8 @@ if ($cycle_ref > 0) {
 		// Re-verify progress (hidden by default)
 		print '<div id="reverify-progress" class="fsm-progress-container">';
 		print '<div class="fsm-progress-status"><span id="reverify-status"></span></div>';
-		print '<div class="fsm-progress-track">';
-		print '<div id="reverify-bar" class="fsm-progress-bar"></div>';
+		print '<div class="progress progress-striped" id="reverify-progress-bar" title="0%">';
+		print '<div id="reverify-bar" class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>';
 		print '</div>';
 		print '</div>';
 
@@ -534,7 +534,7 @@ if ($cycle_ref > 0) {
 				print '</td>';
 			} else {
 				print '<td class="right nowraponall" colspan="6"></td>';
-				print '<td class="center"><span class="badge badge-status0">' . $langs->trans('FactureSituationMigrationCycleNotMigrated') . '</span></td>';
+				print '<td class="center">'.dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status').'</td>';
 				print '<td class="center"></td>';
 			}
 			print '</tr>';

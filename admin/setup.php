@@ -131,7 +131,7 @@ print load_fiche_titre($langs->trans($page_name), $linkback, 'title_setup');
 
 // Configuration header
 $head = facturesituationmigrationAdminPrepareHead();
-print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "facturesituationmigration@facturesituationmigration");
+print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "");
 
 if ($action == 'edit') {
 	print $formSetup->generateOutput(true);

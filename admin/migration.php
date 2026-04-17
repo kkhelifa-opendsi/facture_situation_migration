@@ -223,7 +223,7 @@ print load_fiche_titre($langs->trans($page_name), $linkback, 'title_setup');
 
 // Configuration header
 $head = facturesituationmigrationAdminPrepareHead();
-print dol_get_fiche_head($head, 'migration', $langs->trans($page_name), -1, "facturesituationmigration@facturesituationmigration");
+print dol_get_fiche_head($head, 'migration', $langs->trans($page_name), -1, "");
 echo '<span class="opacitymedium">'.$langs->trans("FactureSituationMigrationMigrationPage").'</span><br><br>';
 ?>
 

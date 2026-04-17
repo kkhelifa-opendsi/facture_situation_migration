@@ -88,19 +88,20 @@ class FactureSituationMigration
 	}
 
 	/**
-	 * Return an HTML badge span: green (status4) if test is true, red (status8) otherwise.
+	 * Return an HTML badge: green (status4) if test is true, red (status8) otherwise.
+	 * Uses Dolibarr native dolGetBadge().
 	 *
 	 * @param  bool   $test      Condition to evaluate
 	 * @param  string $value_ok  Label displayed when test is true
 	 * @param  string $value_nok Label displayed when test is false
-	 * @return string            HTML span with badge class
+	 * @return string            HTML badge
 	 */
 	public static function badgeStatus($test, $value_ok, $value_nok)
 	{
 		if ($test) {
-			return '<span class="badge badge-status4">'.$value_ok.'</span>';
+			return dolGetBadge($value_ok, '', 'status4', 'status');
 		}
-		return '<span class="badge badge-status8">'.$value_nok.'</span>';
+		return dolGetBadge($value_nok, '', 'status8', 'status');
 	}
 
 	/**
