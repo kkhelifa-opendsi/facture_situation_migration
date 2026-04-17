@@ -101,21 +101,6 @@ $migration = new FactureSituationMigration($db);
  * Actions
  */
 
-// Recalculate invoice totals (kept for manual troubleshooting if needed)
-//if ($action == 'recalculate') {
-//	$token = GETPOST('token', 'alpha');
-//	if ($token == newToken()) {
-//		$nb = $migration->recalculateInvoiceTotals();
-//		if ($nb >= 0) {
-//			setEventMessages($langs->trans('FactureSituationMigrationRecalcDone', $nb), null, 'mesgs');
-//		} else {
-//			setEventMessages($migration->error, null, 'errors');
-//		}
-//		header('Location: '.$_SERVER['PHP_SELF']);
-//		exit;
-//	}
-//}
-
 // CSV Export
 if ($action == 'export_csv') {
 	if (!$migration->backupTablesExist()) {
@@ -125,42 +110,45 @@ if ($action == 'export_csv') {
 	}
 
 	$data = $migration->getVerificationCyclesList($search_status, $search_year, $sortfield, $sortorder, 0, 0, $tolerance);
+	if ($data === false) {
+		setEventMessages($migration->error, null, 'errors');
+	} else {
+		header('Content-Type: text/csv; charset=utf-8');
+		header('Content-Disposition: attachment; filename="verification_migration_' . date('Y-m-d') . '.csv"');
 
-	header('Content-Type: text/csv; charset=utf-8');
-	header('Content-Disposition: attachment; filename="verification_migration_'.date('Y-m-d').'.csv"');
+		$output = fopen('php://output', 'w');
+		// BOM UTF-8
+		fwrite($output, "\xEF\xBB\xBF");
 
-	$output = fopen('php://output', 'w');
-	// BOM UTF-8
-	fwrite($output, "\xEF\xBB\xBF");
-
-	fputcsv($output, array(
-		$langs->trans('FactureSituationMigrationCycle'),
-		$langs->trans('FactureSituationMigrationNbInvoices'),
-		$langs->trans('FactureSituationMigrationBackupHT'),
-		$langs->trans('FactureSituationMigrationCurrentHT'),
-		$langs->trans('FactureSituationMigrationDeviationHT'),
-		$langs->trans('FactureSituationMigrationBackupTTC'),
-		$langs->trans('FactureSituationMigrationCurrentTTC'),
-		$langs->trans('FactureSituationMigrationDeviationTTC'),
-		$langs->trans('FactureSituationMigrationStatus'),
-	), ';');
-
-	foreach ($data['cycles'] as $cycle) {
 		fputcsv($output, array(
-			$cycle['cycle_ref'],
-			$cycle['nb_factures'],
-			price2num($cycle['backup_ht'], 'MT'),
-			price2num($cycle['current_ht'], 'MT'),
-			price2num($cycle['ecart_ht'], 'MT'),
-			price2num($cycle['backup_ttc'], 'MT'),
-			price2num($cycle['current_ttc'], 'MT'),
-			price2num($cycle['ecart_ttc'], 'MT'),
-			$cycle['status_ok'] ? 'OK' : 'ERROR',
+			$langs->trans('FactureSituationMigrationCycle'),
+			$langs->trans('FactureSituationMigrationNbInvoices'),
+			$langs->trans('FactureSituationMigrationBackupHT'),
+			$langs->trans('FactureSituationMigrationCurrentHT'),
+			$langs->trans('FactureSituationMigrationDeviationHT'),
+			$langs->trans('FactureSituationMigrationBackupTTC'),
+			$langs->trans('FactureSituationMigrationCurrentTTC'),
+			$langs->trans('FactureSituationMigrationDeviationTTC'),
+			$langs->trans('FactureSituationMigrationStatus'),
 		), ';');
-	}
 
-	fclose($output);
-	exit;
+		foreach ($data['cycles'] as $cycle) {
+			fputcsv($output, array(
+				$cycle['cycle_ref'],
+				$cycle['nb_factures'],
+				price2num($cycle['backup_ht'], 'MT'),
+				price2num($cycle['current_ht'], 'MT'),
+				price2num($cycle['ecart_ht'], 'MT'),
+				price2num($cycle['backup_ttc'], 'MT'),
+				price2num($cycle['current_ttc'], 'MT'),
+				price2num($cycle['ecart_ttc'], 'MT'),
+				$cycle['status_ok'] ? 'OK' : 'ERROR',
+			), ';');
+		}
+
+		fclose($output);
+		exit;
+	}
 }
 
 
@@ -210,10 +198,14 @@ if ($cycle_ref > 0) {
 	// Cycle summary from list data
 	$cycle_data = $migration->getVerificationCyclesList('all', 0, 'cycle_ref', 'ASC', 0, 0, $tolerance);
 	$cycle_summary = null;
-	foreach ($cycle_data['cycles'] as $c) {
-		if ($c['cycle_ref'] == $cycle_ref) {
-			$cycle_summary = $c;
-			break;
+	if ($cycle_data === false) {
+		setEventMessages($migration->error, null, 'errors');
+	} else {
+		foreach ($cycle_data['cycles'] as $c) {
+			if ($c['cycle_ref'] == $cycle_ref) {
+				$cycle_summary = $c;
+				break;
+			}
 		}
 	}
 	$verify = $migration->verifyCycle($cycle_ref, $tolerance);
@@ -406,131 +398,145 @@ if ($cycle_ref > 0) {
 	// ========================================
 
 	$data = $migration->getVerificationCyclesList($search_status, $search_year, $sortfield, $sortorder, $limit, $offset, $tolerance);
-
-	// Summary
-	$nb_total = $data['nb_ok'] + $data['nb_error'];
-	print '<div class="fichecenter">';
-	print '<div class="underbanner clearboth"></div>';
-	print '<table class="border centpercent tableforfield">';
-	print '<tr><td class="titlefield">'.$langs->trans('FactureSituationMigrationCyclesVerified', $nb_total).'</td>';
-	print '<td>';
-	print '<span class="badge badge-status4 badge-status">'.$langs->trans('FactureSituationMigrationCyclesOk', $data['nb_ok']).'</span> ';
-	if ($data['nb_error'] > 0) {
-		print '<span class="badge badge-status8 badge-status">'.$langs->trans('FactureSituationMigrationCyclesWithErrors', $data['nb_error']).'</span>';
-	}
-	print '</td></tr>';
-	// Progress bar
-	if ($nb_total > 0) {
-		$pct_ok = round(($data['nb_ok'] / $nb_total) * 100);
-		print '<tr><td></td><td>';
-		print '<div style="background-color: #ddd; border-radius: 4px; height: 20px; width: 300px; display: inline-block;">';
-		print '<div style="background-color: #4caf50; height: 100%; border-radius: 4px; width: '.$pct_ok.'%;"></div>';
-		print '</div> '.$pct_ok.'%';
+	if ($data === false) {
+		setEventMessages($migration->error, null, 'errors');
+	} else {
+		// Summary
+		$nb_total = $data['nb_ok'] + $data['nb_error'] + $data['nb_not_migrated'];
+		print '<div class="fichecenter">';
+		print '<div class="underbanner clearboth"></div>';
+		print '<table class="border centpercent tableforfield">';
+		print '<tr><td class="titlefield">' . $langs->trans('FactureSituationMigrationNbCycles', $nb_total) . '</td>';
+		print '<td>';
+		print '<span class="badge badge-status4 badge-status">' . $langs->trans('FactureSituationMigrationCyclesOk', $data['nb_ok']) . '</span> ';
+		if ($data['nb_error'] > 0) {
+			print '<span class="badge badge-status8 badge-status">' . $langs->trans('FactureSituationMigrationCyclesWithErrors', $data['nb_error']) . '</span>';
+		}
+		if ($data['nb_not_migrated'] > 0) {
+			print '<span class="badge badge-status0 badge-status">' . $langs->trans('FactureSituationMigrationCyclesNotMigrated', $data['nb_not_migrated']) . '</span>';
+		}
 		print '</td></tr>';
-	}
-	print '</table>';
-	print '</div><br>';
+		// Progress bar
+		if ($nb_total > 0) {
+			$pct_ok = round(($data['nb_ok'] / $nb_total) * 100);
+			print '<tr><td></td><td>';
+			print '<div style="background-color: #ddd; border-radius: 4px; height: 20px; width: 300px; display: inline-block;">';
+			print '<div style="background-color: #4caf50; height: 100%; border-radius: 4px; width: ' . $pct_ok . '%;"></div>';
+			print '</div> ' . $pct_ok . '%';
+			print '</td></tr>';
+		}
+		print '</table>';
+		print '</div><br>';
 
-	// Filters
-	print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-	print '<input type="hidden" name="token" value="'.newToken().'">';
-	print '<input type="hidden" name="sortfield" value="'.$sortfield.'">';
-	print '<input type="hidden" name="sortorder" value="'.$sortorder.'">';
-	//print '<input type="hidden" name="page" value="'.$page.'">';
-	print '<input type="hidden" name="page_y" value="">';
+		// Filters
+		print '<form method="GET" action="' . $_SERVER['PHP_SELF'] . '">';
+		print '<input type="hidden" name="token" value="' . newToken() . '">';
+		print '<input type="hidden" name="sortfield" value="' . $sortfield . '">';
+		print '<input type="hidden" name="sortorder" value="' . $sortorder . '">';
+		//print '<input type="hidden" name="page" value="'.$page.'">';
+		print '<input type="hidden" name="page_y" value="">';
 
-	print '<div class="liste_titre liste_titre_bydiv centpercent">';
-	print '<div class="divsearchfield paddingtop paddingbottom">';
+		print '<div class="liste_titre liste_titre_bydiv centpercent">';
+		print '<div class="divsearchfield paddingtop paddingbottom">';
 
-	// Status filter
-	print '<label for="search_status">'.$langs->trans('FactureSituationMigrationStatus').':</label> ';
-	print '<select name="search_status" id="search_status" class="flat">';
-	print '<option value="all"'.($search_status == 'all' ? ' selected' : '').'>'.$langs->trans('FactureSituationMigrationFilterAll').'</option>';
-	print '<option value="ok"'.($search_status == 'ok' ? ' selected' : '').'>'.$langs->trans('FactureSituationMigrationFilterOk').'</option>';
-	print '<option value="error"'.($search_status == 'error' ? ' selected' : '').'>'.$langs->trans('FactureSituationMigrationFilterErrors').'</option>';
-	print '</select>';
+		// Status filter
+		print '<label for="search_status">' . $langs->trans('FactureSituationMigrationStatus') . ':</label> ';
+		print '<select name="search_status" id="search_status" class="flat">';
+		print '<option value="all"' . ($search_status == 'all' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterAll') . '</option>';
+		print '<option value="migrated"' . ($search_status == 'migrated' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterMigrated') . '</option>';
+		print '<option value="not_migrated"' . ($search_status == 'not_migrated' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterNotMigrated') . '</option>';
+		print '<option value="ok"' . ($search_status == 'ok' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterOk') . '</option>';
+		print '<option value="error"' . ($search_status == 'error' ? ' selected' : '') . '>' . $langs->trans('FactureSituationMigrationFilterErrors') . '</option>';
+		print '</select>';
 
-	// Year filter
-	print ' <label for="search_year">'.$langs->trans('FactureSituationMigrationYear').':</label> ';
-	print '<input type="text" name="search_year" id="search_year" value="'.($search_year > 0 ? $search_year : '').'" size="4" class="flat" placeholder="'.$langs->trans('FactureSituationMigrationAllYears').'">';
+		// Year filter
+		print ' <label for="search_year">' . $langs->trans('FactureSituationMigrationYear') . ':</label> ';
+		print '<input type="text" name="search_year" id="search_year" value="' . ($search_year > 0 ? $search_year : '') . '" size="4" class="flat" placeholder="' . $langs->trans('FactureSituationMigrationAllYears') . '">';
 
-	print ' <input type="submit" class="button small" value="'.$langs->trans('Search').'">';
-	print '</div>';
-	print '</div>';
+		print ' <input type="submit" class="button small" value="' . $langs->trans('Search') . '">';
+		print '</div>';
+		print '</div>';
 
-	// Pagination
-	$num = count($data['cycles']);
-	$nbtotalofrecords = $data['total'];
-	if ($num > 0) $num = min($num + 1, $nbtotalofrecords); // for pagination
-	$param = '';
-	if ($limit > 0 && $limit != $conf->liste_limit) {
-		$param .= '&limit='.((int) $limit);
-	}
-	if ($search_status != 'all') {
-		$param .= '&search_status='.urlencode($search_status);
-	}
-	if ($search_year > 0) {
-		$param .= '&search_year='.$search_year;
-	}
+		// Pagination
+		$num = count($data['cycles']);
+		$nbtotalofrecords = $data['total'];
+		if ($num > 0) $num = min($num + 1, $nbtotalofrecords); // for pagination
+		$param = '';
+		if ($limit > 0 && $limit != $conf->liste_limit) {
+			$param .= '&limit=' . ((int)$limit);
+		}
+		if ($search_status != 'all') {
+			$param .= '&search_status=' . urlencode($search_status);
+		}
+		if ($search_year > 0) {
+			$param .= '&search_year=' . $search_year;
+		}
 
-	// Action buttons
-	print '<div class="tabsAction tabsActionNoBottom">';
-	// Recalculate totals button (kept for manual troubleshooting if needed)
-	//if ($data['nb_error'] > 0) {
-	// print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
-	// print '<input type="hidden" name="token" value="'.newToken().'">';
-	// print '<input type="hidden" name="action" value="recalculate">';
-	// print '<input type="submit" class="butActionDelete" value="'.$langs->trans('FactureSituationMigrationRecalculate').'" onclick="return confirm(\''.$langs->trans('FactureSituationMigrationRecalculateConfirm').'\')">';
-	// print '</form> ';
-	//}
-	// Export CSV button
-	print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=export_csv&token='.newToken().$param.'">'.$langs->trans('FactureSituationMigrationExportCSV').'</a>';
-	print '</div>';
+		// Action buttons
+		print '<div class="tabsAction tabsActionNoBottom">';
+		// Recalculate totals button (kept for manual troubleshooting if needed)
+		//if ($data['nb_error'] > 0) {
+		// print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'" style="display:inline">';
+		// print '<input type="hidden" name="token" value="'.newToken().'">';
+		// print '<input type="hidden" name="action" value="recalculate">';
+		// print '<input type="submit" class="butActionDelete" value="'.$langs->trans('FactureSituationMigrationRecalculate').'" onclick="return confirm(\''.$langs->trans('FactureSituationMigrationRecalculateConfirm').'\')">';
+		// print '</form> ';
+		//}
+		// Export CSV button
+		print '<a class="butAction" href="' . $_SERVER['PHP_SELF'] . '?action=export_csv&token=' . newToken() . $param . '">' . $langs->trans('FactureSituationMigrationExportCSV') . '</a>';
+		print '</div>';
 
-	print_barre_liste('', $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $nbtotalofrecords, '', 0, '', '', $limit);
-	print '</form>';
+		print_barre_liste('', $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $nbtotalofrecords, '', 0, '', '', $limit);
+		print '</form>';
 
-	// Table
-	print '<table class="noborder centpercent">';
-	print '<tr class="liste_titre">';
-	print_liste_field_titre($langs->trans('FactureSituationMigrationCycle'), $_SERVER['PHP_SELF'], 'cycle_ref', '', $param, '', $sortfield, $sortorder);
-	print_liste_field_titre($langs->trans('FactureSituationMigrationNbInvoices'), $_SERVER['PHP_SELF'], 'nb_factures', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationYear'), $_SERVER['PHP_SELF'], 'year', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationBackupHT'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationCurrentHT'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationDeviationHT'), $_SERVER['PHP_SELF'], 'ecart_ht', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationBackupTTC'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationCurrentTTC'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationDeviationTTC'), $_SERVER['PHP_SELF'], 'ecart_ttc', '', $param, '', $sortfield, $sortorder, 'right ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationStatus'), $_SERVER['PHP_SELF'], 'status_ok', '', $param, '', $sortfield, $sortorder, 'center ');
-	print_liste_field_titre($langs->trans('FactureSituationMigrationDetail'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'center ');
-	print '</tr>';
-
-	if ($num == 0) {
-		print '<tr class="oddeven"><td colspan="11" class="opacitymedium">'.$langs->trans('NoRecordFound').'</td></tr>';
-	}
-
-	foreach ($data['cycles'] as $cycle) {
-		$row_class = $cycle['status_ok'] ? '' : ' style="background-color: #fdd;"';
-		print '<tr class="oddeven"'.$row_class.'>';
-		print '<td>'.$langs->trans('FactureSituationMigrationCycleRef', $cycle['cycle_ref']).'</td>';
-		print '<td class="right">'.$cycle['nb_factures'].'</td>';
-		print '<td class="right">'.$cycle['year'].'</td>';
-		print '<td class="right nowraponall">'.price($cycle['backup_ht']).'</td>';
-		print '<td class="right nowraponall">'.price($cycle['current_ht']).'</td>';
-		print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($cycle['ecart_ht_ok'], '0', price($cycle['ecart_ht'])).'</td>';
-		print '<td class="right nowraponall">'.price($cycle['backup_ttc']).'</td>';
-		print '<td class="right nowraponall">'.price($cycle['current_ttc']).'</td>';
-		print '<td class="right nowraponall">'.FactureSituationMigration::badgeStatus($cycle['ecart_ttc_ok'], '0', price($cycle['ecart_ttc'])).'</td>';
-		print '<td class="center">'.FactureSituationMigration::badgeStatus($cycle['status_ok'], 'OK', $langs->trans('Error')).'</td>';
-		print '<td class="center">';
-		print '<a href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$cycle['cycle_ref'].'&backtopage='.urlencode($_SERVER['PHP_SELF']."?page=".$page."&sortfield=".$sortfield."&sortorder=".$sortorder.$param).'">';
-		print '<i class="fas fa-search"></i>';
-		print '</a>';
-		print '</td>';
+		// Table
+		print '<table class="noborder centpercent">';
+		print '<tr class="liste_titre">';
+		print_liste_field_titre($langs->trans('FactureSituationMigrationCycle'), $_SERVER['PHP_SELF'], 'cycle_ref', '', $param, '', $sortfield, $sortorder);
+		print_liste_field_titre($langs->trans('FactureSituationMigrationNbInvoices'), $_SERVER['PHP_SELF'], 'nb_factures', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationYear'), $_SERVER['PHP_SELF'], 'year', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationBackupHT'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationCurrentHT'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationDeviationHT'), $_SERVER['PHP_SELF'], 'ecart_ht', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationBackupTTC'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationCurrentTTC'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationDeviationTTC'), $_SERVER['PHP_SELF'], 'ecart_ttc', '', $param, '', $sortfield, $sortorder, 'right ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationStatus'), $_SERVER['PHP_SELF'], 'status_ok', '', $param, '', $sortfield, $sortorder, 'center ');
+		print_liste_field_titre($langs->trans('FactureSituationMigrationDetail'), $_SERVER['PHP_SELF'], '', '', $param, '', $sortfield, $sortorder, 'center ');
 		print '</tr>';
+
+		if ($num == 0) {
+			print '<tr class="oddeven"><td colspan="11" class="opacitymedium">' . $langs->trans('NoRecordFound') . '</td></tr>';
+		}
+
+		foreach ($data['cycles'] as $cycle) {
+			$row_class = $cycle['status_ok'] ? '' : ' style="background-color: #fdd;"';
+			print '<tr class="oddeven"' . $row_class . '>';
+			print '<td>' . $langs->trans('FactureSituationMigrationCycleRef', $cycle['cycle_ref']) . '</td>';
+			print '<td class="right">' . $cycle['nb_factures'] . '</td>';
+			print '<td class="right">' . $cycle['year'] . '</td>';
+			if (!$cycle['not_migrated']) {
+				print '<td class="right nowraponall">' . price($cycle['backup_ht']) . '</td>';
+				print '<td class="right nowraponall">' . price($cycle['current_ht']) . '</td>';
+				print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($cycle['ecart_ht_ok'], '0', price($cycle['ecart_ht'])) . '</td>';
+				print '<td class="right nowraponall">' . price($cycle['backup_ttc']) . '</td>';
+				print '<td class="right nowraponall">' . price($cycle['current_ttc']) . '</td>';
+				print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($cycle['ecart_ttc_ok'], '0', price($cycle['ecart_ttc'])) . '</td>';
+				print '<td class="center">' . FactureSituationMigration::badgeStatus($cycle['status_ok'], 'OK', $langs->trans('Error')) . '</td>';
+				print '<td class="center">';
+				print '<a href="' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $cycle['cycle_ref'] . '&backtopage=' . urlencode($_SERVER['PHP_SELF'] . "?page=" . $page . "&sortfield=" . $sortfield . "&sortorder=" . $sortorder . $param) . '">';
+				print '<i class="fas fa-search"></i>';
+				print '</a>';
+				print '</td>';
+			} else {
+				print '<td class="right nowraponall" colspan="6"></td>';
+				print '<td class="center"><span class="badge badge-status0">'.$langs->trans('FactureSituationMigrationCycleNotMigrated').'</span></td>';
+				print '<td class="center"></td>';
+			}
+			print '</tr>';
+		}
+		print '</table>';
 	}
-	print '</table>';
 }
 
 // Page end

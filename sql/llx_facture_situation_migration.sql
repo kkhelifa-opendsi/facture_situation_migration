@@ -16,10 +16,8 @@
 
 
 CREATE TABLE IF NOT EXISTS llx_facture_situation_migration(
-  rowid int NOT NULL AUTO_INCREMENT,
-  situation_cycle_ref int DEFAULT NULL,
+  situation_cycle_ref int NOT NULL,
   entity int NOT NULL DEFAULT 1,
-  done tinyint(1) NOT NULL DEFAULT 0,
-  checked tinyint(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (rowid)
+  status tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (situation_cycle_ref, entity)
 ) ENGINE=innodb DEFAULT CHARSET=utf8;

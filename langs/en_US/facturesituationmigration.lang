@@ -29,10 +29,6 @@ FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 Settings = Settings
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
-FACTURESITUATIONMIGRATION_PERCENT_MORE_100_ERROR = Marquer comme erreur les lignes dont le pourcentage est > 100 pourcent durant la migration
-FACTURESITUATIONMIGRATION_PERCENT_MORE_100_FIX = "Corriger" les lignes > 100 pourcent en les forçant à 100 pourcent
-FACTURESITUATIONMIGRATION_PERCENT_LESS_0_ERROR = Marquer comme erreur les lignes dont le pourcentage est < 0 pourcent durant la migration
-FACTURESITUATIONMIGRATION_PERCENT_LESS_0_FIX = "Corriger" les lignes < 0 pourcent en les forçant à 0 pourcent
 FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Rounding tolerance for the verification page (default 0.01)
 
 #
@@ -52,14 +48,13 @@ RetryAllIsNotDone = Quelques factures n'ont pas été migrées:
 FactureSituationMigrationStep1Desc = Sauvegarde de la table llx_facturedet dans la table llx_facture_situation_migration_backup
 FactureSituationMigrationStep1Done = Step 1 completed: backup tables created and data saved
 FactureSituationMigrationStep2Desc = Préparation d'une table (llx_facture_situation_migration) pour checker ce qui est fait ou non
-FactureSituationMigrationStep2Done = Step 2 completed: invoices indexed in the migration table
+FactureSituationMigrationStep2Done = Step 2 completed: cycles indexed in the migration table
 FactureSituationMigrationStep3Desc = Conversion des données de la table llx_facturedet
 FactureSituationMigrationStep3Done = Step 3 completed: all situation invoices have been migrated to delta mode
 FactureSituationMigrationStep3BatchDone = %s cycles migrated in this batch, %s still to process
 FactureSituationMigrationStep4Desc = Rollback / Confirmation
 FactureSituationMigrationStep4RollbackDone = Rollback completed: original data restored and mode 1 reactivated
 FactureSituationMigrationCyclesDone = Cycles de facture traités
-FactureSituationMigrationCyclesError = dont %s en erreurs
 
 #
 # Verification page
@@ -67,9 +62,10 @@ FactureSituationMigrationCyclesError = dont %s en erreurs
 FactureSituationMigrationTabVerification=Verification
 FactureSituationMigrationVerificationPage=Comparison of data before/after migration from mode 1 to mode 2
 FactureSituationMigrationNoBackupTables=Backup tables no longer exist. Verification is not possible.
-FactureSituationMigrationCyclesVerified=%s cycles verified
+FactureSituationMigrationNbCycles=%s cycles
 FactureSituationMigrationCyclesOk=%s cycles OK
 FactureSituationMigrationCyclesWithErrors=%s cycles with errors
+FactureSituationMigrationCyclesNotMigrated=%s cycles not migrated
 FactureSituationMigrationCycle=Cycle
 FactureSituationMigrationCycleRef=Cycle #%s
 FactureSituationMigrationNbInvoices=Nb invoices
@@ -108,6 +104,7 @@ FactureSituationMigrationRecalculate=Recalculate invoice totals
 FactureSituationMigrationRecalculateConfirm=Recalculate totals for all situation invoices? This fixes totals corrupted by update_price running in mode 1.
 FactureSituationMigrationRecalcDone=%s invoices recalculated successfully
 FactureSituationMigrationConfirmDone=Migration confirmed. Backup data for this entity has been cleaned up.
+FactureSituationMigrationCycleNotMigrated=Not migrated
 
 #
 # Home
@@ -130,7 +127,7 @@ FactureSituationMigrationErrorStep3Select = SQL error while selecting cycles to 
 FactureSituationMigrationErrorStep3AllFailed = All cycles failed to migrate, no data was converted
 FactureSituationMigrationErrorStep3PrevCounterMissing = Cycle %s, invoice %s (situation %s): previous situation #%s is missing (gap in sequence). Cycle was rolled back and marked in error. Fix the data then reset status to 0 to retry.
 FactureSituationMigrationErrorStep3LinePercent = Cycle %s, invoice %s (situation %s): invalid or out-of-range percent on line %s. Cycle was rolled back and marked in error. Check "PERCENT_MORE_100" / "PERCENT_LESS_0" options then reset status to 0 to retry.
-FactureSituationMigrationErrorSetFactureStatus = Invoice %s: unable to update status in migration table: %s
+FactureSituationMigrationErrorSetCycleStatus = Cycle %s: unable to update status in migration table: %s
 FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, invoice %s: unable to load invoice for total recalculation
 FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, invoice %s: update_price failed: %s
 FactureSituationMigrationErrorStep3SetChecked = Cycle %s: unable to save verification result in migration table: %s
@@ -156,6 +153,6 @@ FactureSituationMigrationErrorConfirmCleanBackupFac = Error cleaning facture bac
 FactureSituationMigrationWarningStep1AlreadyDone = Step 1 has already been run (migration already in progress)
 FactureSituationMigrationWarningStep2NoInvoices = No situation invoices found, no migration needed
 FactureSituationMigrationWarningStep2NoCyclesCurrentYear = No cycles to migrate for the current year ("Current year" option enabled)
-FactureSituationMigrationWarningStep2AlreadyIndexed = All invoices are already indexed, nothing to add
+FactureSituationMigrationWarningStep2AlreadyIndexed = All cycles are already indexed, nothing to add
 FactureSituationMigrationWarningStep3NothingToDo = All cycles are already migrated, nothing to do
 FactureSituationMigrationWarningStep3PartialErrors = %s cycles out of %s encountered errors during migration

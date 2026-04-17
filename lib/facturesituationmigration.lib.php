@@ -55,7 +55,7 @@ function facturesituationmigrationAdminPrepareHead()
 	$h++;
 	*/
 
-	if (getDolGlobalInt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP') >= 3) {
+	if (getDolGlobalInt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP') >= 2) {
 		dol_include_once('/facturesituationmigration/class/facturesituationmigration.class.php');
 		$migration_tmp = new FactureSituationMigration($db);
 		if ($migration_tmp->backupTablesExist()) {

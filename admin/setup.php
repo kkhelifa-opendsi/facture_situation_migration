@@ -92,10 +92,6 @@ $formSetup = new FormSetup($db);
 $form = new Form($db);
 
 $formSetup->newItem('FACTURESITUATIONMIGRATION_CURRENT_YEAR')->setAsYesNo();
-$formSetup->newItem('FACTURESITUATIONMIGRATION_PERCENT_MORE_100_ERROR')->setAsYesNo();
-$formSetup->newItem('FACTURESITUATIONMIGRATION_PERCENT_MORE_100_FIX')->setAsYesNo();
-$formSetup->newItem('FACTURESITUATIONMIGRATION_PERCENT_LESS_0_ERROR')->setAsYesNo();
-$formSetup->newItem('FACTURESITUATIONMIGRATION_PERCENT_LESS_0_FIX')->setAsYesNo();
 $item_tolerance = $formSetup->newItem('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE');
 $item_tolerance->defaultFieldValue = '0.01';
 
@@ -137,8 +133,19 @@ print load_fiche_titre($langs->trans($page_name), $linkback, 'title_setup');
 $head = facturesituationmigrationAdminPrepareHead();
 print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "facturesituationmigration@facturesituationmigration");
 
+if ($action == 'edit') {
+	print $formSetup->generateOutput(true);
+	print '<br>';
+} elseif (!empty($formSetup->items)) {
+	print $formSetup->generateOutput();
+	print '<div class="tabsAction">';
+	print '<a class="butAction" href="' . $_SERVER["PHP_SELF"] . '?action=edit&token=' . newToken() . '">' . $langs->trans("Modify") . '</a>';
+	print '</div>';
+}
 
-print $formSetup->generateOutput();
+if (empty($setupnotempty)) {
+	print '<br>'.$langs->trans("NothingToSetup");
+}
 
 // Page end
 print dol_get_fiche_end();

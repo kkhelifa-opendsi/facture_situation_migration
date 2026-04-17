@@ -28,10 +28,6 @@ ModuleFactureSituationMigrationDesc = Module pour migrer les facture de situatio
 FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
-FACTURESITUATIONMIGRATION_PERCENT_MORE_100_ERROR = Marquer comme erreur les lignes dont le pourcentage est > 100 pourcent durant la migration
-FACTURESITUATIONMIGRATION_PERCENT_MORE_100_FIX = "Corriger" les lignes > 100 pourcent en les forçant à 100 pourcent
-FACTURESITUATIONMIGRATION_PERCENT_LESS_0_ERROR = Marquer comme erreur les lignes dont le pourcentage est < 0 pourcent durant la migration
-FACTURESITUATIONMIGRATION_PERCENT_LESS_0_FIX = "Corriger" les lignes < 0 pourcent en les forçant à 0 pourcent
 FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Tolérance d'arrondi pour la page de vérification (par défaut 0.01)
 
 #
@@ -52,14 +48,13 @@ RetryAllIsNotDone = Quelques factures n'ont pas été migrées:
 FactureSituationMigrationStep1Desc = Sauvegarde de la table llx_facturedet dans la table llx_facture_situation_migration_backup
 FactureSituationMigrationStep1Done = Étape 1 terminée : tables de backup créées et données sauvegardées
 FactureSituationMigrationStep2Desc = Préparation d'une table (llx_facture_situation_migration) pour checker ce qui est fait ou non
-FactureSituationMigrationStep2Done = Étape 2 terminée : factures indexées dans la table de migration
+FactureSituationMigrationStep2Done = Étape 2 terminée : cycles indexées dans la table de migration
 FactureSituationMigrationStep3Desc = Conversion des données de la table llx_facturedet
 FactureSituationMigrationStep3Done = Étape 3 terminée : toutes les factures de situation ont été migrées en mode delta
 FactureSituationMigrationStep3BatchDone = %s cycles migrés dans ce lot, %s restants à traiter
 FactureSituationMigrationStep4Desc = Rollback / Confirmation
 FactureSituationMigrationStep4RollbackDone = Rollback effectué : les données originales ont été restaurées et le mode 1 réactivé
 FactureSituationMigrationCyclesDone = Cycles de facture traités
-FactureSituationMigrationCyclesError = dont %s en erreurs
 
 #
 # Verification page
@@ -67,9 +62,10 @@ FactureSituationMigrationCyclesError = dont %s en erreurs
 FactureSituationMigrationTabVerification=Vérification
 FactureSituationMigrationVerificationPage=Comparaison des données avant/après migration mode 1 vers mode 2
 FactureSituationMigrationNoBackupTables=Les tables de backup n'existent plus. La vérification n'est pas possible.
-FactureSituationMigrationCyclesVerified=%s cycles vérifiés
+FactureSituationMigrationNbCycles=%s cycles
 FactureSituationMigrationCyclesOk=%s cycles OK
 FactureSituationMigrationCyclesWithErrors=%s cycles avec erreurs
+FactureSituationMigrationCyclesNotMigrated=%s cycles non migrés
 FactureSituationMigrationCycle=Cycle
 FactureSituationMigrationCycleRef=Cycle n°%s
 FactureSituationMigrationNbInvoices=Nb factures
@@ -108,6 +104,7 @@ FactureSituationMigrationRecalculate=Recalculer les totaux factures
 FactureSituationMigrationRecalculateConfirm=Recalculer les totaux de toutes les factures de situation ? Cette opération corrige les totaux corrompus par un update_price en mode 1.
 FactureSituationMigrationRecalcDone=%s factures recalculées avec succès
 FactureSituationMigrationConfirmDone=Migration confirmée. Les données de backup de cette entité ont été nettoyées.
+FactureSituationMigrationCycleNotMigrated=Non migré
 
 #
 # Home
@@ -130,7 +127,7 @@ FactureSituationMigrationErrorStep3Select = Erreur SQL lors de la sélection des
 FactureSituationMigrationErrorStep3AllFailed = Tous les cycles ont échoué à la migration, aucune donnée n'a été convertie
 FactureSituationMigrationErrorStep3PrevCounterMissing = Cycle %s, facture %s (situation %s) : la situation précédente n°%s est manquante (trou dans la séquence). Le cycle a été annulé et marqué en erreur. Corrigez les données puis réinitialisez le statut à 0 pour réessayer.
 FactureSituationMigrationErrorStep3LinePercent = Cycle %s, facture %s (situation %s) : pourcentage invalide ou hors plage sur la ligne %s. Le cycle a été annulé et marqué en erreur. Vérifiez les options "PERCENT_MORE_100" / "PERCENT_LESS_0" puis réinitialisez le statut à 0 pour réessayer.
-FactureSituationMigrationErrorSetFactureStatus = Facture %s : impossible de mettre à jour le statut dans la table de migration : %s
+FactureSituationMigrationErrorSetCycleStatus = Cycle %s : impossible de mettre à jour le statut dans la table de migration : %s
 FactureSituationMigrationErrorStep3FetchInvoice = Cycle %s, facture %s : impossible de charger la facture pour recalculer les totaux
 FactureSituationMigrationErrorStep3UpdatePrice = Cycle %s, facture %s : échec du recalcul des totaux (update_price) : %s
 FactureSituationMigrationErrorStep3SetChecked = Cycle %s : impossible d'enregistrer le résultat de vérification dans la table de migration : %s
@@ -156,6 +153,6 @@ FactureSituationMigrationErrorConfirmCleanBackupFac = Erreur lors du nettoyage d
 FactureSituationMigrationWarningStep1AlreadyDone = L'étape 1 a déjà été exécutée (migration déjà en cours)
 FactureSituationMigrationWarningStep2NoInvoices = Aucune facture de situation trouvée, aucune migration nécessaire
 FactureSituationMigrationWarningStep2NoCyclesCurrentYear = Aucun cycle à migrer pour l'année en cours (option "Année courante" activée)
-FactureSituationMigrationWarningStep2AlreadyIndexed = Toutes les factures sont déjà indexées, rien à ajouter
+FactureSituationMigrationWarningStep2AlreadyIndexed = Toutes les cycles sont déjà indexées, rien à ajouter
 FactureSituationMigrationWarningStep3NothingToDo = Tous les cycles sont déjà migrés, rien à faire
 FactureSituationMigrationWarningStep3PartialErrors = %s cycles sur %s ont rencontré des erreurs lors de la migration

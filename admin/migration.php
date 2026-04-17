@@ -138,8 +138,9 @@ switch ($action) {
 		if ($result >= 0) {
 			// On check combien il en reste
 			$count_todo = $migration->countMigrationToDo();
-			$count_error = $migration->countMigrationErrors();
-			if ($count_todo == 0 && $count_error == 0) {
+			if ($count_todo < 0) {
+				setEventMessages($migration->error, null, 'errors');
+			} elseif ($count_todo == 0) {
 				dolibarr_set_const($db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
 				dolibarr_set_const($db, 'INVOICE_USE_SITUATION', '2', 'chaine', 0, '', $conf->entity);
 
@@ -186,7 +187,7 @@ switch ($action) {
 				$step_migration = 4;
 				setEventMessages($langs->trans('FactureSituationMigrationConfirmDone'), null, 'mesgs');
 			} else {
-				setEventMessages($migration->error, $migration->errors, 'errors');
+				setEventMessages($migration->error, null, 'errors');
 			}
 		}
 	break;
@@ -195,9 +196,14 @@ switch ($action) {
 // Set counters
 if ($step_migration >= 2) {
 	$count_todo = $migration->countMigrationToDo();
-	$count_error = $migration->countMigrationErrors();
+	if ($count_todo < 0) {
+		setEventMessages($migration->error, null, 'errors');
+	}
 	$count_all = $migration->countMigrationAll();
-	$count_done = $count_all - $count_todo - $count_error;
+	if ($count_all < 0) {
+		setEventMessages($migration->error, null, 'errors');
+	}
+	$count_done = $count_all - $count_todo;
 }
 
 
@@ -268,7 +274,7 @@ echo '<span class="opacitymedium">'.$langs->trans("FactureSituationMigrationMigr
 			<td><?php echo $langs->trans('StepNb', 3); ?></td>
 			<td><?php echo $langs->trans('FactureSituationMigrationStep3Desc'); ?></td>
 			<td class="right">
-				<span class="paddingright"><?php echo $langs->trans('FactureSituationMigrationCyclesDone').': '.$count_done.' / '.$count_all . ($count_error > 0 ? ' (' . $langs->trans('FactureSituationMigrationCyclesError', $count_error) . ')' : ''); ?></span>
+				<span class="paddingright"><?php echo $langs->trans('FactureSituationMigrationCyclesDone').': '.$count_done.' / '.$count_all ?></span>
 				<?php if ($step_migration == 2) : ?>
 					<form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>" style="display:inline-block;">
 						<input type="hidden" name="token" value="<?php echo newtoken(); ?>">

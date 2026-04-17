@@ -432,12 +432,14 @@ class modFactureSituationMigration extends DolibarrModules
 		global $conf, $langs;
 		$langs->load("facturesituationmigration@facturesituationmigration");
 
+		$sql = array();
+
 		// Check if already into a migration in any entities with the older version
 		$isNewVersion = false;
-		$sql = "SELECT COUNT(*) AS nb";
-		$sql .= " FROM " . $this->db->prefix() . "const";
-		$sql .= " WHERE name = " . $this->db->encrypt('FACTURESITUATIONMIGRATION_VERSION');
-		$resql = $this->db->query($sql);
+		$sql_check = "SELECT COUNT(*) AS nb";
+		$sql_check .= " FROM " . $this->db->prefix() . "const";
+		$sql_check .= " WHERE name = " . $this->db->encrypt('FACTURESITUATIONMIGRATION_VERSION');
+		$resql = $this->db->query($sql_check);
 		if ($resql) {
 			if ($obj = $this->db->fetch_object($resql)) {
 				$isNewVersion = ((int) $obj->nb) > 0;
@@ -448,10 +450,10 @@ class modFactureSituationMigration extends DolibarrModules
 			return 0;
 		}
 		if (!$isNewVersion) {
-			$sql = "SELECT " . $this->db->decrypt('value') . " AS value, entity";
-			$sql .= " FROM " . $this->db->prefix() . "const";
-			$sql .= " WHERE name = " . $this->db->encrypt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
-			$resql = $this->db->query($sql);
+			$sql_check = "SELECT " . $this->db->decrypt('value') . " AS value, entity";
+			$sql_check .= " FROM " . $this->db->prefix() . "const";
+			$sql_check .= " WHERE name = " . $this->db->encrypt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
+			$resql = $this->db->query($sql_check);
 			if ($resql) {
 				$into_migration = [];
 				while ($obj = $this->db->fetch_object($resql)) {
@@ -470,6 +472,22 @@ class modFactureSituationMigration extends DolibarrModules
 				$this->error = $this->db->lasterror();
 				return 0;
 			}
+			$sql = array_merge($sql, array(
+				// Migration from per-facture (rowid PK) to per-cycle (situation_cycle_ref + entity PK)
+				// 1. Deduplicate: keep one row per (cycle, entity)
+				"DELETE t1 FROM llx_facture_situation_migration t1" .
+				" INNER JOIN llx_facture_situation_migration t2" .
+				" ON t1.situation_cycle_ref = t2.situation_cycle_ref AND t1.entity = t2.entity AND t1.rowid > t2.rowid;",
+				// 2. Remove AUTO_INCREMENT (required before DROP PRIMARY KEY in MySQL)
+				"ALTER TABLE llx_facture_situation_migration MODIFY COLUMN rowid int NOT NULL;",
+				// 3. Drop old PK and rowid column
+				"ALTER TABLE llx_facture_situation_migration DROP PRIMARY KEY;",
+				"ALTER TABLE llx_facture_situation_migration DROP COLUMN rowid;",
+				// 4. Rename done → status
+				"ALTER TABLE llx_facture_situation_migration CHANGE COLUMN done status tinyint(1) NOT NULL DEFAULT 0;",
+				// 5. New composite PK
+				"ALTER TABLE llx_facture_situation_migration ADD PRIMARY KEY (situation_cycle_ref, entity);",
+			));
 		}
 
 		//$result = $this->_load_tables('/install/mysql/', 'facturesituationmigration');
@@ -489,8 +507,6 @@ class modFactureSituationMigration extends DolibarrModules
 
 		// Permissions
 		$this->remove($options);
-
-		$sql = array();
 
 		// Document templates
 		$moduledir = dol_sanitizeFileName('facturesituationmigration');
