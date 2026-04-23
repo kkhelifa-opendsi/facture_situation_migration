@@ -1483,16 +1483,18 @@ class FactureSituationMigration
 				if ($fk_prev_id > 0 && isset($detail[$prev_counter]['lines'][$fk_prev_id])) {
 					$prev_bk = $detail[$prev_counter]['lines'][$fk_prev_id]['backup'];
 					$cur_bk = $line['backup'];
+					// Use same rounding functions as migration_step_3 to avoid false positives:
+					// number_format for percent, price2num for amounts
 					$line['expected'] = array(
-						'situation_percent' => round($cur_bk['situation_percent'] - $prev_bk['situation_percent'], 2),
-						'total_ht' => round($cur_bk['total_ht'] - $prev_bk['total_ht'], 2),
-						'total_tva' => round($cur_bk['total_tva'] - $prev_bk['total_tva'], 2),
-						'total_ttc' => round($cur_bk['total_ttc'] - $prev_bk['total_ttc'], 2),
-						'total_localtax1' => round($cur_bk['total_localtax1'] - $prev_bk['total_localtax1'], 2),
-						'total_localtax2' => round($cur_bk['total_localtax2'] - $prev_bk['total_localtax2'], 2),
-						'multicurrency_total_ht' => round($cur_bk['multicurrency_total_ht'] - $prev_bk['multicurrency_total_ht'], 2),
-						'multicurrency_total_tva' => round($cur_bk['multicurrency_total_tva'] - $prev_bk['multicurrency_total_tva'], 2),
-						'multicurrency_total_ttc' => round($cur_bk['multicurrency_total_ttc'] - $prev_bk['multicurrency_total_ttc'], 2),
+						'situation_percent' => (float) number_format(floatval($cur_bk['situation_percent']) - floatval($prev_bk['situation_percent']), 2, '.', ''),
+						'total_ht' => price2num(floatval($cur_bk['total_ht']) - floatval($prev_bk['total_ht']), 'MT'),
+						'total_tva' => price2num(floatval($cur_bk['total_tva']) - floatval($prev_bk['total_tva']), 'MT'),
+						'total_ttc' => price2num(floatval($cur_bk['total_ttc']) - floatval($prev_bk['total_ttc']), 'MT'),
+						'total_localtax1' => price2num(floatval($cur_bk['total_localtax1']) - floatval($prev_bk['total_localtax1']), 'MT'),
+						'total_localtax2' => price2num(floatval($cur_bk['total_localtax2']) - floatval($prev_bk['total_localtax2']), 'MT'),
+						'multicurrency_total_ht' => price2num(floatval($cur_bk['multicurrency_total_ht']) - floatval($prev_bk['multicurrency_total_ht']), 'MT'),
+						'multicurrency_total_tva' => price2num(floatval($cur_bk['multicurrency_total_tva']) - floatval($prev_bk['multicurrency_total_tva']), 'MT'),
+						'multicurrency_total_ttc' => price2num(floatval($cur_bk['multicurrency_total_ttc']) - floatval($prev_bk['multicurrency_total_ttc']), 'MT'),
 					);
 				} else {
 					$line['expected'] = $line['backup'];
@@ -1514,7 +1516,7 @@ class FactureSituationMigration
 
 			$facture_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 			foreach ($facture_fields as $field) {
-				$ecart = round($detail[$counter]['current'][$field] - $expected[$field], 2);
+				$ecart = (float) price2num(floatval($detail[$counter]['current'][$field]) - floatval($expected[$field]), 'MT');
 				$ecart_ok = (abs($ecart) <= $tolerance);
 				$detail[$counter]['ecart_'.$field] = $ecart;
 				$detail[$counter]['ecart_'.$field.'_ok'] = $ecart_ok;
@@ -1529,7 +1531,11 @@ class FactureSituationMigration
 				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
 				$line['line_ok'] = true;
 				foreach ($line_fields as $field) {
-					$ecart = round($line['current'][$field] - $line_expected[$field], 2);
+					if ($field == 'situation_percent') {
+						$ecart = (float) number_format(floatval($line['current'][$field]) - floatval($line_expected[$field]), 2, '.', '');
+					} else {
+						$ecart = (float) price2num(floatval($line['current'][$field]) - floatval($line_expected[$field]), 'MT');
+					}
 					$ecart_ok = (abs($ecart) <= $tolerance);
 					$line['ecart_'.$field] = $ecart;
 					$line['ecart_'.$field.'_ok'] = $ecart_ok;
