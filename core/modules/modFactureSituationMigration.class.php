@@ -442,7 +442,7 @@ class modFactureSituationMigration extends DolibarrModules
 		$resql = $this->db->query($sql_check);
 		if ($resql) {
 			if ($obj = $this->db->fetch_object($resql)) {
-				$isNewVersion = ((int) $obj->nb) > 0;
+				$isNewVersion = ((int) $obj->nb) == 0;
 			}
 			$this->db->free($resql);
 		} else {

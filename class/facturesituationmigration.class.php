@@ -1507,15 +1507,24 @@ class FactureSituationMigration
 		// mode 1 (update_price subtracted previous invoices). So after migration,
 		// the current total should simply equal the backup total for all situations.
 		// Also compute ecart values and flags for the view layer.
+		// Credit notes (type != TYPE_SITUATION) are not migrated and have no backup row,
+		// so they are always considered OK — backup join would yield 0 and produce false errors.
+		$facture_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+		$line_fields = array('situation_percent', 'total_ht', 'total_tva', 'total_ttc', 'total_localtax1', 'total_localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 		foreach ($counters as $idx => $counter) {
 			$detail[$counter]['expected'] = $detail[$counter]['backup'];
+			$is_situation = ((int) $detail[$counter]['type'] == (int) Facture::TYPE_SITUATION);
 
 			// Per-facture ecart flags on ALL migrated amounts
 			$expected = $detail[$counter]['expected'];
 			$facture_ok = true;
 
-			$facture_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 			foreach ($facture_fields as $field) {
+				if (!$is_situation) {
+					$detail[$counter]['ecart_'.$field] = 0.0;
+					$detail[$counter]['ecart_'.$field.'_ok'] = true;
+					continue;
+				}
 				$ecart = (float) price2num(floatval($detail[$counter]['current'][$field]) - floatval($expected[$field]), 'MT');
 				$ecart_ok = (abs($ecart) <= $tolerance);
 				$detail[$counter]['ecart_'.$field] = $ecart;
@@ -1526,11 +1535,15 @@ class FactureSituationMigration
 			}
 
 			// Per-line ecart flags on ALL migrated amounts
-			$line_fields = array('situation_percent', 'total_ht', 'total_tva', 'total_ttc', 'total_localtax1', 'total_localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
 			foreach ($detail[$counter]['lines'] as $line_id => &$line) {
 				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
 				$line['line_ok'] = true;
 				foreach ($line_fields as $field) {
+					if (!$is_situation) {
+						$line['ecart_'.$field] = 0.0;
+						$line['ecart_'.$field.'_ok'] = true;
+						continue;
+					}
 					if ($field == 'situation_percent') {
 						$ecart = (float) number_format(floatval($line['current'][$field]) - floatval($line_expected[$field]), 2, '.', '');
 					} else {
@@ -1688,9 +1701,12 @@ class FactureSituationMigration
 		);
 
 		// Check 4: Situation 1 lines unchanged (backup == current)
+		// Skip if $detail[1] is a credit note (avoir): not migrated, no backup row,
+		// so backup would always be 0 and produce false errors.
 		$check4_ok = true;
 		$check4_details = '';
-		if (count($counters) > 0 && $counters[0] == 1 && isset($detail[1])) {
+		if (count($counters) > 0 && $counters[0] == 1 && isset($detail[1])
+			&& (int) $detail[1]['type'] == (int) Facture::TYPE_SITUATION) {
 			foreach ($detail[1]['lines'] as $line_id => $line) {
 				$fields = array('situation_percent', 'total_ht', 'total_tva', 'total_ttc');
 				foreach ($fields as $f) {
@@ -1777,13 +1793,25 @@ class FactureSituationMigration
 		}
 		$sortorder = (strtoupper($sortorder) == 'DESC') ? 'DESC' : 'ASC';
 
-		$from_where = " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
-		$from_where .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
-		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON m.situation_cycle_ref = bk.situation_cycle_ref AND m.entity IN (".$entityList.")";
-		$from_where .= " WHERE COALESCE(bk.situation_cycle_ref, 0) > 0";
-		$from_where .= " AND bk.entity IN (".$entityList.")";
+		// Build the same filtered/sorted list as getVerificationCyclesList (page query)
+		// so prev/next reflect the user's actual view. All sort columns must be in the
+		// SELECT (the ORDER BY references aggregate aliases, not raw columns).
+		$ecart_ht_sql = '(SUM(f.total_ht) - SUM(bk.total_ht))';
+		$ecart_ttc_sql = '(SUM(f.total_ttc) - SUM(bk.total_ttc))';
 
-		// HAVING clause (same as getVerificationCyclesList)
+		$sql = "SELECT bk.situation_cycle_ref as cycle_ref,";
+		$sql .= " ROUND(".$ecart_ht_sql.", 2) as ecart_ht,";
+		$sql .= " ROUND(".$ecart_ttc_sql.", 2) as ecart_ttc,";
+		$sql .= " COUNT(*) as nb_factures,";
+		$sql .= " MAX(EXTRACT(YEAR FROM bk.datef)) as year,";
+		$sql .= " MIN(COALESCE(m.status, 0)) as status_ok";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON m.situation_cycle_ref = bk.situation_cycle_ref AND m.entity IN (".$entityList.")";
+		$sql .= " WHERE COALESCE(bk.situation_cycle_ref, 0) > 0";
+		$sql .= " AND bk.entity IN (".$entityList.")";
+		$sql .= " GROUP BY bk.situation_cycle_ref";
+
 		$having = '';
 		if ($search_year > 0) {
 			$having .= " AND MAX(EXTRACT(YEAR FROM bk.datef)) = ".$search_year;
@@ -1798,46 +1826,32 @@ class FactureSituationMigration
 			$having .= " AND MIN(COALESCE(m.status, 0)) = 0";
 		}
 		if ($having != '') {
-			$having = ' HAVING 1=1'.$having;
+			$sql .= ' HAVING 1=1'.$having;
 		}
+		$sql .= " ORDER BY ".$sortfield." ".$sortorder;
 
-		// Build ordered subquery of all matching cycle_refs
-		$sub = "SELECT bk.situation_cycle_ref as cycle_ref";
-		$sub .= $from_where;
-		$sub .= " GROUP BY bk.situation_cycle_ref";
-		$sub .= $having;
-		$sub .= " ORDER BY ".$sortfield." ".$sortorder;
-
-		// Previous: last cycle before current in sort order
-		if ($sortorder == 'ASC') {
-			$sql_prev = "SELECT cycle_ref FROM (".$sub.") as sub_prev WHERE cycle_ref < ".$cycle_ref." ORDER BY cycle_ref DESC LIMIT 1";
-			$sql_next = "SELECT cycle_ref FROM (".$sub.") as sub_next WHERE cycle_ref > ".$cycle_ref." ORDER BY cycle_ref ASC LIMIT 1";
-		} else {
-			$sql_prev = "SELECT cycle_ref FROM (".$sub.") as sub_prev WHERE cycle_ref > ".$cycle_ref." ORDER BY cycle_ref ASC LIMIT 1";
-			$sql_next = "SELECT cycle_ref FROM (".$sub.") as sub_next WHERE cycle_ref < ".$cycle_ref." ORDER BY cycle_ref DESC LIMIT 1";
-		}
-
-		$resql = $this->db->query($sql_prev);
+		$resql = $this->db->query($sql);
 		if (!$resql) {
 			$this->error = $langs->trans('FactureSituationMigrationErrorAdjacentCycles', $cycle_ref, $this->db->lasterror());
-			dol_syslog('getAdjacentCycles: SQL error on prev query: '.$this->db->lasterror(), LOG_ERR, 0, '_situationmigration');
+			dol_syslog('getAdjacentCycles: SQL error: '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
 			return false;
 		}
-		$obj = $this->db->fetch_object($resql);
-		if ($obj) {
-			$result['prev'] = (int) $obj->cycle_ref;
-		}
-		$this->db->free($resql);
 
-		$resql = $this->db->query($sql_next);
-		if (!$resql) {
-			$this->error = $langs->trans('FactureSituationMigrationErrorAdjacentCycles', $cycle_ref, $this->db->lasterror());
-			dol_syslog('getAdjacentCycles: SQL error on next query: '.$this->db->lasterror(), LOG_ERR, 0, '_situationmigration');
-			return false;
-		}
-		$obj = $this->db->fetch_object($resql);
-		if ($obj) {
-			$result['next'] = (int) $obj->cycle_ref;
+		// Walk the ordered list and capture neighbours of $cycle_ref
+		$prev = null;
+		$found = false;
+		while ($obj = $this->db->fetch_object($resql)) {
+			$ref = (int) $obj->cycle_ref;
+			if ($found) {
+				$result['next'] = $ref;
+				break;
+			}
+			if ($ref == $cycle_ref) {
+				$result['prev'] = $prev;
+				$found = true;
+				continue;
+			}
+			$prev = $ref;
 		}
 		$this->db->free($resql);
 
