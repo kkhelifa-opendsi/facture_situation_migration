@@ -538,7 +538,7 @@ class FactureSituationMigration
 			$sql_bis = "SELECT";
 			$sql_bis .= " f.rowid as facture_id, f.ref as facture_ref, f.situation_cycle_ref as facture_cycle_ref, f.situation_counter as facture_situation_counter, f.situation_final as facture_situation_final, EXTRACT(YEAR FROM f.datef) as facture_year";
 			$sql_bis .= " , fd.rowid as ligne_id, fd.situation_percent as ligne_percent, fd.fk_prev_id as ligne_prev_id";
-			$sql_bis .= " , fd.subprice as ligne_subprice, fd.total_ht as ligne_total_ht, fd.total_tva as ligne_total_tva, fd.total_ttc as ligne_total_ttc, fd.total_localtax1 as ligne_total_localtax1, fd.total_localtax2 as ligne_total_localtax2, fd.special_code as special_code";
+			$sql_bis .= " , fd.subprice as ligne_subprice, fd.total_ht as ligne_total_ht, fd.total_tva as ligne_total_tva, fd.total_ttc as ligne_total_ttc, fd.total_localtax1 as ligne_total_localtax1, fd.total_localtax2 as ligne_total_localtax2, fd.special_code as special_code, fd.product_type as ligne_product_type";
 			$sql_bis .= " , fd.multicurrency_subprice as ligne_multicurrency_subprice, fd.multicurrency_total_ht as ligne_multicurrency_total_ht, fd.multicurrency_total_tva as ligne_multicurrency_total_tva, fd.multicurrency_total_ttc as ligne_multicurrency_total_ttc";
 			$sql_bis .= " FROM " . MAIN_DB_PREFIX . $this->table_facture . " AS f";
 			$sql_bis .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_facturedet . " AS fd ON f.rowid = fd.fk_facture";
@@ -581,6 +581,7 @@ class FactureSituationMigration
 						'multicurrency_ligne_total_tva' => $obj_bis->ligne_multicurrency_total_tva,
 						'multicurrency_ligne_total_ttc' => $obj_bis->ligne_multicurrency_total_ttc,
 						'special_code' => $obj_bis->special_code,
+						'product_type' => $obj_bis->ligne_product_type,
 					);
 				}
 
@@ -617,8 +618,13 @@ class FactureSituationMigration
 					if (isset($cycle_array[$cycle_counter_before])) {
 						// Pour chaque ligne de la facture
 						foreach ($cycle_infos['lines'] as $line_id => $line_infos) {
-							// Check if special code or subtotal
-							if ($line_infos['special_code'] == '104777') {
+							// Only migrate real billable lines: products (product_type=0)
+							// and services (product_type=1), whether free lines (fk_product
+							// empty) or catalog-linked. Any other type (e.g. 9 = text/comment
+							// or subtotal display lines) is left untouched: its situation_percent
+							// is not a billing progress value, so computing a delta would be
+							// meaningless. Verification applies the same exclusion.
+							if ((int) $line_infos['product_type'] !== 0 && (int) $line_infos['product_type'] !== 1) {
 								continue;
 							}
 
@@ -1404,7 +1410,7 @@ class FactureSituationMigration
 		$this->db->free($resql);
 
 		// Lines: current vs backup
-		$sql_lines = "SELECT fd.rowid as line_id, fd.label, fd.description, fd.fk_prev_id,";
+		$sql_lines = "SELECT fd.rowid as line_id, fd.label, fd.description, fd.fk_prev_id, fd.product_type,";
 		$sql_lines .= " fd.situation_percent, fd.total_ht, fd.total_tva, fd.total_ttc,";
 		$sql_lines .= " fd.total_localtax1, fd.total_localtax2,";
 		$sql_lines .= " fd.multicurrency_total_ht, fd.multicurrency_total_tva, fd.multicurrency_total_ttc,";
@@ -1438,6 +1444,7 @@ class FactureSituationMigration
 				'label' => $obj->label,
 				'description' => $obj->description,
 				'fk_prev_id' => (int) $obj->fk_prev_id,
+				'product_type' => (int) $obj->product_type,
 				'current' => array(
 					'situation_percent' => (float) $obj->situation_percent,
 					'total_ht' => (float) $obj->total_ht,
@@ -1479,6 +1486,13 @@ class FactureSituationMigration
 			}
 			$prev_counter = $counters[$idx - 1];
 			foreach ($detail[$counter]['lines'] as $line_id => &$line) {
+				// Non-billable lines (product_type not in {0,1}: text/comment/subtotal)
+				// are not migrated by migration_step_3, so the expected value equals the
+				// unchanged backup, never a computed delta.
+				if ((int) $line['product_type'] !== 0 && (int) $line['product_type'] !== 1) {
+					$line['expected'] = $line['backup'];
+					continue;
+				}
 				$fk_prev_id = $line['fk_prev_id'];
 				if ($fk_prev_id > 0 && isset($detail[$prev_counter]['lines'][$fk_prev_id])) {
 					$prev_bk = $detail[$prev_counter]['lines'][$fk_prev_id]['backup'];
@@ -1538,8 +1552,11 @@ class FactureSituationMigration
 			foreach ($detail[$counter]['lines'] as $line_id => &$line) {
 				$line_expected = isset($line['expected']) ? $line['expected'] : $line['backup'];
 				$line['line_ok'] = true;
+				// Non-billable lines (product_type not in {0,1}) are not migrated,
+				// so they are always considered OK (no ecart computed).
+				$line_is_billable = ((int) $line['product_type'] === 0 || (int) $line['product_type'] === 1);
 				foreach ($line_fields as $field) {
-					if (!$is_situation) {
+					if (!$is_situation || !$line_is_billable) {
 						$line['ecart_'.$field] = 0.0;
 						$line['ecart_'.$field.'_ok'] = true;
 						continue;
@@ -1630,6 +1647,11 @@ class FactureSituationMigration
 			$last_lines = $detail[$last_counter]['lines'];
 			// For each line chain, sum current percents across all situations
 			foreach ($last_lines as $last_line_id => $last_line) {
+				// Skip non-billable lines (product_type not in {0,1}): they are not
+				// migrated, so their percents are not deltas and must not be summed.
+				if ((int) $last_line['product_type'] !== 0 && (int) $last_line['product_type'] !== 1) {
+					continue;
+				}
 				$target_percent = $last_line['backup']['situation_percent'];
 				// Walk the chain backwards to sum current percents
 				$sum_percent = 0;

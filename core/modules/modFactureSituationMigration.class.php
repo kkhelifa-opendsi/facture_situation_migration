@@ -434,15 +434,15 @@ class modFactureSituationMigration extends DolibarrModules
 
 		$sql = array();
 
-		// Check if already into a migration in any entities with the older version
-		$isNewVersion = false;
+		// Check if the version already installed is the new version
+		$isNewVersion = true;
 		$sql_check = "SELECT COUNT(*) AS nb";
 		$sql_check .= " FROM " . $this->db->prefix() . "const";
 		$sql_check .= " WHERE name = " . $this->db->encrypt('FACTURESITUATIONMIGRATION_VERSION');
 		$resql = $this->db->query($sql_check);
 		if ($resql) {
 			if ($obj = $this->db->fetch_object($resql)) {
-				$isNewVersion = ((int) $obj->nb) == 0;
+				$isNewVersion = ((int) $obj->nb) != 0;
 			}
 			$this->db->free($resql);
 		} else {
@@ -450,6 +450,7 @@ class modFactureSituationMigration extends DolibarrModules
 			return 0;
 		}
 		if (!$isNewVersion) {
+			// Check if already into a migration in any entities with the older version
 			$sql_check = "SELECT " . $this->db->decrypt('value') . " AS value, entity";
 			$sql_check .= " FROM " . $this->db->prefix() . "const";
 			$sql_check .= " WHERE name = " . $this->db->encrypt('MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP');
@@ -475,8 +476,8 @@ class modFactureSituationMigration extends DolibarrModules
 			$sql = array_merge($sql, array(
 				// Migration from per-facture (rowid PK) to per-cycle (situation_cycle_ref + entity PK)
 				// 1. Deduplicate: keep one row per (cycle, entity)
-				"DELETE t1 FROM llx_facture_situation_migration t1" .
-				" INNER JOIN llx_facture_situation_migration t2" .
+				"DELETE t1 FROM llx_facture_situation_migration AS t1" .
+				" INNER JOIN llx_facture_situation_migration AS t2" .
 				" ON t1.situation_cycle_ref = t2.situation_cycle_ref AND t1.entity = t2.entity AND t1.rowid > t2.rowid;",
 				// 2. Remove AUTO_INCREMENT (required before DROP PRIMARY KEY in MySQL)
 				"ALTER TABLE llx_facture_situation_migration MODIFY COLUMN rowid int NOT NULL;",
