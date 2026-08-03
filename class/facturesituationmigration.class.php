@@ -489,7 +489,8 @@ class FactureSituationMigration
 	 */
 	public function migration_step_3(&$listOfErrors)
 	{
-		global $conf, $langs;
+		global $conf, $langs, $mysoc;
+		require_once DOL_DOCUMENT_ROOT . '/core/lib/price.lib.php';
 		$langs->load('facturesituationmigration@facturesituationmigration');
 		$this->error = '';
 		$this->warning = '';
@@ -540,6 +541,7 @@ class FactureSituationMigration
 			$sql_bis .= " , fd.rowid as ligne_id, fd.situation_percent as ligne_percent, fd.fk_prev_id as ligne_prev_id";
 			$sql_bis .= " , fd.subprice as ligne_subprice, fd.total_ht as ligne_total_ht, fd.total_tva as ligne_total_tva, fd.total_ttc as ligne_total_ttc, fd.total_localtax1 as ligne_total_localtax1, fd.total_localtax2 as ligne_total_localtax2, fd.special_code as special_code, fd.product_type as ligne_product_type";
 			$sql_bis .= " , fd.multicurrency_subprice as ligne_multicurrency_subprice, fd.multicurrency_total_ht as ligne_multicurrency_total_ht, fd.multicurrency_total_tva as ligne_multicurrency_total_tva, fd.multicurrency_total_ttc as ligne_multicurrency_total_ttc";
+			$sql_bis .= " , fd.qty as ligne_qty, fd.remise_percent as ligne_remise_percent, fd.tva_tx as ligne_tva_tx, fd.vat_src_code as ligne_vat_src_code, fd.localtax1_tx as ligne_localtax1_tx, fd.localtax2_tx as ligne_localtax2_tx, fd.localtax1_type as ligne_localtax1_type, fd.localtax2_type as ligne_localtax2_type, fd.info_bits as ligne_info_bits, f.multicurrency_tx as facture_multicurrency_tx";
 			$sql_bis .= " FROM " . MAIN_DB_PREFIX . $this->table_facture . " AS f";
 			$sql_bis .= " INNER JOIN " . MAIN_DB_PREFIX . $this->table_facturedet . " AS fd ON f.rowid = fd.fk_facture";
 			$sql_bis .= " WHERE f.situation_cycle_ref = " . ((int) $obj->situation_cycle_ref) . " AND f.type = " . ((int) Facture::TYPE_SITUATION) . " AND f.entity IN (" . getEntity('facture') . ")";
@@ -582,6 +584,16 @@ class FactureSituationMigration
 						'multicurrency_ligne_total_ttc' => $obj_bis->ligne_multicurrency_total_ttc,
 						'special_code' => $obj_bis->special_code,
 						'product_type' => $obj_bis->ligne_product_type,
+						'qty' => $obj_bis->ligne_qty,
+						'remise_percent' => $obj_bis->ligne_remise_percent,
+						'tva_tx' => $obj_bis->ligne_tva_tx,
+						'vat_src_code' => $obj_bis->ligne_vat_src_code,
+						'localtax1_tx' => $obj_bis->ligne_localtax1_tx,
+						'localtax2_tx' => $obj_bis->ligne_localtax2_tx,
+						'localtax1_type' => $obj_bis->ligne_localtax1_type,
+						'localtax2_type' => $obj_bis->ligne_localtax2_type,
+						'info_bits' => $obj_bis->ligne_info_bits,
+						'multicurrency_tx' => $obj_bis->facture_multicurrency_tx,
 					);
 				}
 
@@ -643,50 +655,44 @@ class FactureSituationMigration
 							if (isset($cycle_array[$cycle_counter_before]['lines'][$fk_prev_id])) {
 								$prev_line_infos = $cycle_array[$cycle_counter_before]['lines'][$fk_prev_id];
 
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['line_percent'] = number_format(floatval($line_infos['line_percent'] ?? 0) - floatval($prev_line_infos['line_percent'] ?? 0), 2, '.', '');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ht'] = price2num(floatval($line_infos['ligne_total_ht'] ?? 0) - floatval($prev_line_infos['ligne_total_ht'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_tva'] = price2num(floatval($line_infos['ligne_total_tva'] ?? 0) - floatval($prev_line_infos['ligne_total_tva'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ttc'] = price2num(floatval($line_infos['ligne_total_ttc'] ?? 0) - floatval($prev_line_infos['ligne_total_ttc'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax1'] = price2num(floatval($line_infos['ligne_total_localtax1'] ?? 0) - floatval($prev_line_infos['ligne_total_localtax1'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax2'] = price2num(floatval($line_infos['ligne_total_localtax2'] ?? 0) - floatval($prev_line_infos['ligne_total_localtax2'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ht'] = price2num(floatval($line_infos['multicurrency_ligne_total_ht'] ?? 0) - floatval($prev_line_infos['multicurrency_ligne_total_ht'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_tva'] = price2num(floatval($line_infos['multicurrency_ligne_total_tva'] ?? 0) - floatval($prev_line_infos['multicurrency_ligne_total_tva'] ?? 0), 'MT');
-								$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ttc'] = price2num(floatval($line_infos['multicurrency_ligne_total_ttc'] ?? 0) - floatval($prev_line_infos['multicurrency_ligne_total_ttc'] ?? 0), 'MT');
+								// Delta of situation progress between current and previous situation.
+								$delta_percent = (float) number_format(floatval($line_infos['line_percent'] ?? 0) - floatval($prev_line_infos['line_percent'] ?? 0), 2, '.', '');
+
+								// Recompute all line amounts from the unit price and the delta progress,
+								// using the same core function as Facture::addline and update_price
+								// (calcul_price_total). This yields the canonical mode-2 representation,
+								// internally consistent (ttc = ht + tva + localtax), instead of naively
+								// subtracting the previous (possibly inconsistent) stored amounts.
+								$localtaxes_array = array($line_infos['localtax1_type'], $line_infos['localtax1_tx'], $line_infos['localtax2_type'], $line_infos['localtax2_tx']);
+								$tabprice = calcul_price_total($line_infos['qty'], $line_infos['subprice'], $line_infos['remise_percent'], $line_infos['tva_tx'], $line_infos['localtax1_tx'], $line_infos['localtax2_tx'], 0, 'HT', $line_infos['info_bits'], (int) $line_infos['product_type'], $mysoc, $localtaxes_array, $delta_percent, $line_infos['multicurrency_tx'], $line_infos['multicurrency_subprice']);
+
+								$new_percent = $delta_percent;
+								$new_ht = price2num((float) $tabprice[0], 'MT');
+								$new_tva = price2num((float) $tabprice[1], 'MT');
+								$new_ttc = price2num((float) $tabprice[2], 'MT');
+								$new_localtax1 = price2num((float) $tabprice[9], 'MT');
+								$new_localtax2 = price2num((float) $tabprice[10], 'MT');
+								$new_multi_ht = price2num((float) $tabprice[16], 'MT');
+								$new_multi_tva = price2num((float) $tabprice[17], 'MT');
+								$new_multi_ttc = price2num((float) $tabprice[18], 'MT');
 
 								// LOGS
 								if ($this->log_detail > 0) {
-									$log_percent = 'New Percent = Actual(' . $line_infos['line_percent'] . ') - PreviousLine(' . $prev_line_infos['line_percent'] . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['line_percent'] . '%';
-									$log_ht = 'New TotalHT = Actual(' . floatval($line_infos['ligne_total_ht'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['ligne_total_ht'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ht'] . '€';
-									$log_tva = 'New TotalTVA = Actual(' . floatval($line_infos['ligne_total_tva'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['ligne_total_tva'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_tva'] . '€';
-									$log_ttc = 'New TotalTTC = Actual(' . floatval($line_infos['ligne_total_ttc'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['ligne_total_ttc'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ttc'] . '€';
-									$log_localtax1 = 'New TotalLocalTax1 = Actual(' . floatval($line_infos['ligne_total_localtax1'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['ligne_total_localtax1'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax1'] . '€';
-									$log_localtax2 = 'New TotalLocalTax2 = Actual(' . floatval($line_infos['ligne_total_localtax2'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['ligne_total_localtax2'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax2'] . '€';
-									$log_multiht = 'New MulticurrencyTotalHT = Actual(' . floatval($line_infos['multicurrency_ligne_total_ht'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['multicurrency_ligne_total_ht'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ht'] . '€';
-									$log_multitva = 'New MulticurrencyTotalTVA = Actual(' . floatval($line_infos['multicurrency_ligne_total_tva'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['multicurrency_ligne_total_tva'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_tva'] . '€';
-									$log_multittc = 'New MulticurrencyTotalTTC = Actual(' . floatval($line_infos['multicurrency_ligne_total_ttc'] ?? 0) . ') - PreviousLine(' . floatval($prev_line_infos['multicurrency_ligne_total_ttc'] ?? 0) . ') = ' . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ttc'] . '€';
 									dol_syslog('Invoice::' . $cycle_infos['facture_ref'] . ' - Line::' . $line_id . ' - PreviousLine::' . $fk_prev_id, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_percent, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_ht, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_tva, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_ttc, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_localtax1, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_localtax2, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_multiht, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_multitva, LOG_DEBUG, 0, '_situationmigration');
-									dol_syslog($log_multittc, LOG_DEBUG, 0, '_situationmigration');
+									dol_syslog('New Percent (delta) = Actual(' . $line_infos['line_percent'] . ') - Previous(' . $prev_line_infos['line_percent'] . ') = ' . $new_percent . '%', LOG_DEBUG, 0, '_situationmigration');
+									dol_syslog('Recomputed via calcul_price_total(qty=' . $line_infos['qty'] . ', pu=' . $line_infos['subprice'] . ', tva_tx=' . $line_infos['tva_tx'] . ', progress=' . $new_percent . ') => HT=' . $new_ht . ' TVA=' . $new_tva . ' TTC=' . $new_ttc . ' | LocalTax1=' . $new_localtax1 . ' LocalTax2=' . $new_localtax2 . ' | Devise HT=' . $new_multi_ht . ' TVA=' . $new_multi_tva . ' TTC=' . $new_multi_ttc, LOG_DEBUG, 0, '_situationmigration');
 								}
-								//var_dump('------------- NEW HT:'.$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ht'].'€ || '.$cycle_array[$cycle_counter]['lines'][$fk_prev_id]['line_percent'].'%');
 
 								$sql_update = "UPDATE " . MAIN_DB_PREFIX . $this->table_facturedet . " SET";
-								$sql_update .= " situation_percent = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['line_percent'] . "',";
-								$sql_update .= " total_ht = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ht'] . "',";
-								$sql_update .= " total_tva = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_tva'] . "',";
-								$sql_update .= " total_ttc = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_ttc'] . "',";
-								$sql_update .= " total_localtax1 = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax1'] . "',";
-								$sql_update .= " total_localtax2 = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['ligne_total_localtax2'] . "',";
-								$sql_update .= " multicurrency_total_ht = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ht'] . "',";
-								$sql_update .= " multicurrency_total_tva = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_tva'] . "',";
-								$sql_update .= " multicurrency_total_ttc = '" . $cycle_array[$cycle_counter]['lines'][$fk_prev_id]['multicurrency_ligne_total_ttc'] . "'";
+								$sql_update .= " situation_percent = '" . $new_percent . "',";
+								$sql_update .= " total_ht = '" . $new_ht . "',";
+								$sql_update .= " total_tva = '" . $new_tva . "',";
+								$sql_update .= " total_ttc = '" . $new_ttc . "',";
+								$sql_update .= " total_localtax1 = '" . $new_localtax1 . "',";
+								$sql_update .= " total_localtax2 = '" . $new_localtax2 . "',";
+								$sql_update .= " multicurrency_total_ht = '" . $new_multi_ht . "',";
+								$sql_update .= " multicurrency_total_tva = '" . $new_multi_tva . "',";
+								$sql_update .= " multicurrency_total_ttc = '" . $new_multi_ttc . "'";
 								$sql_update .= " WHERE rowid = " . ((int)$line_id);
 								dol_syslog('sql=' . $sql_update, LOG_DEBUG, 0, '_situationmigration');
 
@@ -1497,18 +1503,40 @@ class FactureSituationMigration
 				if ($fk_prev_id > 0 && isset($detail[$prev_counter]['lines'][$fk_prev_id])) {
 					$prev_bk = $detail[$prev_counter]['lines'][$fk_prev_id]['backup'];
 					$cur_bk = $line['backup'];
-					// Use same rounding functions as migration_step_3 to avoid false positives:
-					// number_format for percent, price2num for amounts
+					$cur = $line['current'];
+					// INDEPENDENT verification (deliberately NOT reusing the migration's
+					// calcul_price_total, which would only prove "the DB holds the value the
+					// migration wrote" instead of "the value is right").
+					//
+					// - situation_percent, total_ht, localtax and multicurrency HT are checked
+					//   against the delta of the backup cumulative values. These backup fields
+					//   are reliable (percent and HT were stored consistently in mode 1).
+					// - TVA (base + devise) has no reliable independent line-level reference
+					//   (the mode-1 backup sometimes stored it inconsistently, which caused the
+					//   negative-delta false positives), so expected TVA = current TVA (zero line
+					//   ecart); TVA conservation is enforced at invoice level by check 0.
+					// - TTC (base + devise) is derived from the EXPECTED components
+					//   (expected_ttc = expected_ht + expected_tva + expected_localtax) so the
+					//   expected row stays internally coherent (e.g. TVA=0 => expected TTC =
+					//   expected HT). Its ecart then tracks the HT ecart, consistently with the
+					//   invoice-level check.
+					$exp_percent = (float) number_format(floatval($cur_bk['situation_percent']) - floatval($prev_bk['situation_percent']), 2, '.', '');
+					$exp_ht = price2num(floatval($cur_bk['total_ht']) - floatval($prev_bk['total_ht']), 'MT');
+					$exp_lt1 = price2num(floatval($cur_bk['total_localtax1']) - floatval($prev_bk['total_localtax1']), 'MT');
+					$exp_lt2 = price2num(floatval($cur_bk['total_localtax2']) - floatval($prev_bk['total_localtax2']), 'MT');
+					$exp_mc_ht = price2num(floatval($cur_bk['multicurrency_total_ht']) - floatval($prev_bk['multicurrency_total_ht']), 'MT');
+					$exp_tva = price2num(floatval($cur['total_tva']), 'MT');
+					$exp_mc_tva = price2num(floatval($cur['multicurrency_total_tva']), 'MT');
 					$line['expected'] = array(
-						'situation_percent' => (float) number_format(floatval($cur_bk['situation_percent']) - floatval($prev_bk['situation_percent']), 2, '.', ''),
-						'total_ht' => price2num(floatval($cur_bk['total_ht']) - floatval($prev_bk['total_ht']), 'MT'),
-						'total_tva' => price2num(floatval($cur_bk['total_tva']) - floatval($prev_bk['total_tva']), 'MT'),
-						'total_ttc' => price2num(floatval($cur_bk['total_ttc']) - floatval($prev_bk['total_ttc']), 'MT'),
-						'total_localtax1' => price2num(floatval($cur_bk['total_localtax1']) - floatval($prev_bk['total_localtax1']), 'MT'),
-						'total_localtax2' => price2num(floatval($cur_bk['total_localtax2']) - floatval($prev_bk['total_localtax2']), 'MT'),
-						'multicurrency_total_ht' => price2num(floatval($cur_bk['multicurrency_total_ht']) - floatval($prev_bk['multicurrency_total_ht']), 'MT'),
-						'multicurrency_total_tva' => price2num(floatval($cur_bk['multicurrency_total_tva']) - floatval($prev_bk['multicurrency_total_tva']), 'MT'),
-						'multicurrency_total_ttc' => price2num(floatval($cur_bk['multicurrency_total_ttc']) - floatval($prev_bk['multicurrency_total_ttc']), 'MT'),
+						'situation_percent' => $exp_percent,
+						'total_ht' => $exp_ht,
+						'total_localtax1' => $exp_lt1,
+						'total_localtax2' => $exp_lt2,
+						'multicurrency_total_ht' => $exp_mc_ht,
+						'total_tva' => $exp_tva,
+						'multicurrency_total_tva' => $exp_mc_tva,
+						'total_ttc' => price2num(floatval($exp_ht) + floatval($exp_tva) + floatval($exp_lt1) + floatval($exp_lt2), 'MT'),
+						'multicurrency_total_ttc' => price2num(floatval($exp_mc_ht) + floatval($exp_mc_tva), 'MT'),
 					);
 				} else {
 					$line['expected'] = $line['backup'];

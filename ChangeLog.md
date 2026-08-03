@@ -2,6 +2,10 @@
 
 ## Staging
 - MAJ - Seules les lignes réellement facturables sont migrées (product_type 0=produit / 1=service) ; les lignes texte/commentaire/sous-total (autre product_type) sont laissées intactes et exclues de la vérification. Remplace l'ancien filtre basé sur le special_code 104777.
+- MAJ - Migration : les montants de ligne (HT, TVA, TTC, taxes locales, devise) sont recalculés via `calcul_price_total` sur le pourcentage delta — comme le fait Dolibarr nativement (représentation mode 2 canonique) — au lieu de soustraire les montants cumulés stockés. Supprime la dépendance à la correction conditionnelle d'`update_price`.
+- MAJ - Vérification rendue indépendante du calcul de migration : pourcentage / HT / taxes locales / HT devise comparés au delta du backup ; TVA vérifiée au niveau facture ; TTC dérivé des composantes attendues pour rester cohérent (ttc = ht + tva + taxes locales).
+- MAJ - Page de vérification : le clic sur le badge OK/Erreur d'une ligne ou d'une facture affiche désormais tous les champs (et plus seulement ceux en écart) ; le badge est toujours dépliable.
+- FIX - Correction des faux positifs de vérification : écarts négatifs aberrants sur la TVA/TTC de ligne (montants sources incohérents en mode 1) et attendu TTC incohérent avec l'attendu HT.
 - FIX - Correction de la détection de la version installée à l'installation/mise à jour du module.
 - FIX - Correction des alias SQL (AS) dans les requêtes de migration de la table de suivi.
 

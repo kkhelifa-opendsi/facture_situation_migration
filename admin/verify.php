@@ -411,7 +411,7 @@ if ($cycle_ref > 0) {
 				'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
 				'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
 			);
-			$secondary_errors = printSecondaryAmountsErrors($fac_secondary_fields, $info, $expected, $counter);
+			$secondary_errors = printSecondaryAmountsDetails($fac_secondary_fields, $info, $expected, $counter);
 
 			print '<tr class="oddeven' . $row_class . '">';
 			print '<td' . ($nb_lines > 0 ? ' onclick="jQuery(\'.lines-sit-' . $counter . '\').toggle(); jQuery(\'.fsm-sec-line-sit-' . $counter . '\').hide(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationShowLines')) . '"' : '') .'>';
@@ -433,7 +433,10 @@ if ($cycle_ref > 0) {
 			print '<td class="center"' . ($secondary_errors['nb'] > 0 ? ' onclick="jQuery(\'.fsm-sec-fac-' . $counter . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '"' : '') .'>';
 			print FactureSituationMigration::badgeStatus($info['facture_ok'], 'OK', $langs->trans('Error'));
 			if ($secondary_errors['nb'] > 0) {
-				print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>(' . $secondary_errors['nb'] . ')';
+				print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>';
+				if ($secondary_errors['nb_err'] > 0) {
+					print '(' . $secondary_errors['nb_err'] . ')';
+				}
 			}
 			print '</td>';
 			print '</tr>';
@@ -465,7 +468,7 @@ if ($cycle_ref > 0) {
 						'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
 						'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
 					);
-					$secondary_errors = printSecondaryAmountsErrors($line_secondary_fields, $line, $line_expected, $counter, $line_id, $idxLine < $nbLines);
+					$secondary_errors = printSecondaryAmountsDetails($line_secondary_fields, $line, $line_expected, $counter, $line_id, $idxLine < $nbLines);
 
 					print '<tr class="oddeven lines-sit-' . $counter . $line_class . ' fsm-lines-hidden">';
 					print '<td>' . $langs->trans('FactureSituationMigrationLineId', $line_id) . '</td>';
@@ -481,7 +484,10 @@ if ($cycle_ref > 0) {
 					print '<td class="center"' . ($secondary_errors['nb'] > 0 ? ' onclick="jQuery(\'.fsm-sec-line-' . $line_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '"' : '') .'>';
 					print FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error'));
 					if ($secondary_errors['nb'] > 0) {
-						print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>(' . $secondary_errors['nb'] . ')';
+						print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>';
+						if ($secondary_errors['nb_err'] > 0) {
+							print '(' . $secondary_errors['nb_err'] . ')';
+						}
 					}
 					print '</td>';
 					print '</tr>';
@@ -728,58 +734,66 @@ function printInvoiceLineHeaders($counter, $line_id = -1)
 }
 
 /**
- * Get secondary amounts in errors HTML to show
+ * Get secondary amounts detail HTML to show (ALL fields, not only those in error)
+ *
+ * The block lists every secondary amount so the user can verify the full set of
+ * values when clicking the status badge, not just the fields flagged in error.
+ * Rows in error keep the red highlight (fsm-row-error).
+ *
  * @param	array	$secondary_fields	List of secondary amounts to show
  * @param	array	$info				Infos
  * @param	array	$expected			Expected infos
  * @param	int		$counter			Line counter (used show/hide line bloc)
  * @param	int		$line_id			Line ID (used show/hide sub errors line bloc)
  * @param	bool	$show_line_header	Show line header after the bloc
- * @return	array						array('html' => xxx, 'nb' => yyy)
+ * @return	array						array('html' => xxx, 'nb' => yyy, 'nb_err' => zzz)
  */
-function printSecondaryAmountsErrors($secondary_fields, $info, $expected, $counter, $line_id = -1, $show_line_header = false)
+function printSecondaryAmountsDetails($secondary_fields, $info, $expected, $counter, $line_id = -1, $show_line_header = false)
 {
 	global $langs;
 
-	$result = array('html' => '', 'nb' => 0);
+	$result = array('html' => '', 'nb' => 0, 'nb_err' => 0);
+	if (empty($secondary_fields)) {
+		return $result;
+	}
 
-	// Secondary amounts expandable row (only if errors on non-displayed fields)
-	$secondary_errors = array();
+	// Count errors (for the badge indicator) but always render every field.
+	$nb_err = 0;
 	foreach ($secondary_fields as $field => $label) {
-		if (!$info['ecart_' . $field . '_ok']) {
-			$secondary_errors[$field] = $label;
+		if (empty($info['ecart_' . $field . '_ok'])) {
+			$nb_err++;
 		}
 	}
-	if (!empty($secondary_errors)) {
-		$class = ($line_id == -1 ? 'fsm-sec-fac-' . $counter : 'fsm-sec-line-' . $line_id . ' fsm-sec-line-sit-' . $counter) . ' fsm-lines-hidden';
-		$out = '<tr class="liste_titre ' . $class . '">';
-		$out .= '<td colspan="3">' . $langs->trans('FactureSituationMigrationDetail') . '</td>';
-		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . '</td>';
-		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
-		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
-		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+
+	$class = ($line_id == -1 ? 'fsm-sec-fac-' . $counter : 'fsm-sec-line-' . $line_id . ' fsm-sec-line-sit-' . $counter) . ' fsm-lines-hidden';
+	$out = '<tr class="liste_titre ' . $class . '">';
+	$out .= '<td colspan="3">' . $langs->trans('FactureSituationMigrationDetail') . '</td>';
+	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationBackupValue') . '</td>';
+	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
+	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
+	$out .= '<td colspan="5"></td>';
+	$out .= '</tr>';
+
+	foreach ($secondary_fields as $field => $label) {
+		$field_ok = !empty($info['ecart_' . $field . '_ok']);
+		$out .= '<tr class="oddeven ' . $class . ($field_ok ? '' : ' fsm-row-error') . '">';
+		$out .= '<td colspan="3">' . dol_escape_htmltag($label) . '</td>';
+		$out .= '<td class="right nowraponall">' . price($info['backup'][$field]) . '</td>';
+		$out .= '<td class="right nowraponall">' . price($info['current'][$field]) . '</td>';
+		$out .= '<td class="right nowraponall">' . price($expected[$field]) . '</td>';
+		$ecart = price($info['ecart_' . $field]);
+		$out .= '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_' . $field . '_ok'], $ecart, $ecart) . '</td>';
 		$out .= '<td colspan="5"></td>';
 		$out .= '</tr>';
-
-		foreach ($secondary_errors as $field => $label) {
-			$out .= '<tr class="oddeven ' . $class . ' fsm-row-error">';
-			$out .= '<td colspan="3">' . dol_escape_htmltag($label) . '</td>';
-			$out .= '<td class="right nowraponall">' . price($info['backup'][$field]) . '</td>';
-			$out .= '<td class="right nowraponall">' . price($info['current'][$field]) . '</td>';
-			$out .= '<td class="right nowraponall">' . price($expected[$field]) . '</td>';
-			$ecart = price($info['ecart_' . $field]);
-			$out .= '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_' . $field . '_ok'], $ecart, $ecart) . '</td>';
-			$out .= '<td colspan="5"></td>';
-			$out .= '</tr>';
-		}
-
-		// Lines header for next line
-		if ($show_line_header) {
-			$out .= printInvoiceLineHeaders($counter, $line_id);
-		}
-
-		$result = array('html' => $out, 'nb' => count($secondary_errors));
 	}
+
+	// Lines header for next line
+	if ($show_line_header) {
+		$out .= printInvoiceLineHeaders($counter, $line_id);
+	}
+
+	$result = array('html' => $out, 'nb' => count($secondary_fields), 'nb_err' => $nb_err);
 
 	return $result;
 }
