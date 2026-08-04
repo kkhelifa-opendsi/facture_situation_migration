@@ -30,6 +30,8 @@ Settings = Settings
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
 FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Rounding tolerance for the verification page (default 0)
+FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECT = Maximum deviation allowing automatic correction of a cycle (default 0.1)
+FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECTTooltip = During bulk correction from the cycles list, a cycle is only corrected automatically if the absolute deviation of EVERY invoice AND EVERY line (HT, VAT, TTC, local taxes, multicurrency) is lower than or equal to this value. A single line above this threshold makes the whole cycle skipped and kept in error (deviation not caused by simple rounding, to review manually).
 
 #
 # About page
@@ -106,6 +108,11 @@ FactureSituationMigrationBackToList=Back to list
 FactureSituationMigrationReverifyAll=Re-verify all cycles
 FactureSituationMigrationReverifyConfirm=Re-run verification on all migrated cycles? This operation may take some time.
 FactureSituationMigrationReverifyDone=Re-verification completed
+FactureSituationMigrationApplyExpectedAll=Correct the deviation of all cycles
+FactureSituationMigrationCorrectAllConfirm=Automatically correct all cycles in error whose deviation (HT and TTC) is lower than or equal to %s? Cycles with a larger deviation will be skipped. This operation changes data and may take some time.
+FactureSituationMigrationCorrectAllDone=Bulk correction completed
+FactureSituationMigrationCorrected=corrected
+FactureSituationMigrationSkipped=skipped
 FactureSituationMigrationRecalculate=Recalculate invoice totals
 FactureSituationMigrationRecalculateConfirm=Recalculate totals for all situation invoices? This fixes totals corrupted by update_price running in mode 1.
 FactureSituationMigrationRecalcDone=%s invoices recalculated successfully

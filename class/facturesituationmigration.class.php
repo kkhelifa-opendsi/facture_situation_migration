@@ -2273,6 +2273,155 @@ class FactureSituationMigration
 	}
 
 	/**
+	 * Largest absolute money deviation found in a cycle detail, across every invoice header
+	 * AND every line (all money fields: HT, TVA, TTC, local taxes, multicurrency).
+	 *
+	 * Used to gate bulk auto-correction: a cycle is only auto-corrected when this maximum is
+	 * within the threshold, so a single line (or invoice) off by more than the threshold
+	 * blocks the whole cycle even if the invoice/cycle totals happen to match (compensating
+	 * errors). Such a discrepancy is not a mere rounding difference and must be reviewed
+	 * manually. situation_percent is excluded (it is a percentage, not a money amount).
+	 *
+	 * @param  array  $detail  Detail from getVerificationCycleDetail()/verifyCycle()
+	 * @return float           Max absolute deviation (0.0 if detail empty)
+	 */
+	private function maxEcartFromDetail($detail)
+	{
+		$max = 0.0;
+		if (!is_array($detail)) {
+			return $max;
+		}
+		$fac_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+		$line_fields = array('total_ht', 'total_tva', 'total_ttc', 'total_localtax1', 'total_localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+		foreach ($detail as $info) {
+			foreach ($fac_fields as $f) {
+				if (isset($info['ecart_'.$f])) {
+					$max = max($max, abs((float) $info['ecart_'.$f]));
+				}
+			}
+			if (!empty($info['lines'])) {
+				foreach ($info['lines'] as $line) {
+					foreach ($line_fields as $f) {
+						if (isset($line['ecart_'.$f])) {
+							$max = max($max, abs((float) $line['ecart_'.$f]));
+						}
+					}
+				}
+			}
+		}
+		return $max;
+	}
+
+	/**
+	 * Process one batch of automatic cycle corrections for AJAX progress.
+	 *
+	 * Iterates cycles currently flagged in error (status = -1) from a cursor ordered by
+	 * cycle ref. For each, the global deviation (current vs backup, HT and TTC) is compared
+	 * to $max_ecart: only cycles whose deviation is within the threshold are corrected
+	 * (applyExpectedValues on the whole cycle, then re-verify and refresh the status). Cycles
+	 * beyond the threshold are left untouched (counted as skipped) so large, suspicious
+	 * deviations are never silently auto-corrected. The cursor always advances past examined
+	 * cycles, so skipped cycles are not re-examined (no infinite loop).
+	 *
+	 * @param  int    $batch_size      Number of error cycles to examine in this batch
+	 * @param  int    $last_cycle_ref  Cursor: only cycles with ref greater than this
+	 * @param  float  $max_ecart       Max absolute deviation (HT and TTC) allowed to auto-correct
+	 * @return array  array('processed'=>int, 'corrected'=>int, 'skipped'=>int, 'remaining'=>int, 'last_cycle_ref'=>int, 'errors'=>string[], 'done'=>bool)
+	 */
+	public function correctBatch($batch_size = 10, $last_cycle_ref = 0, $max_ecart = 0.1)
+	{
+		$result = array('processed' => 0, 'corrected' => 0, 'skipped' => 0, 'remaining' => 0, 'last_cycle_ref' => (int) $last_cycle_ref, 'errors' => array(), 'done' => false);
+
+		$entityList = getEntity('facture');
+		$batch_size = max(1, (int) $batch_size);
+		$last_cycle_ref = (int) $last_cycle_ref;
+		$max_ecart = (float) $max_ecart;
+
+		// Count remaining error cycles from the cursor
+		$sql_count = "SELECT COUNT(*) as nb FROM ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql_count .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql_count .= " AND status = -1";
+		$sql_count .= " AND entity IN (".$entityList.")";
+
+		$resql = $this->db->query($sql_count);
+		if (!$resql) {
+			$result['errors'][] = $this->db->lasterror();
+			$result['done'] = true;
+			return $result;
+		}
+		if ($obj = $this->db->fetch_object($resql)) {
+			$result['remaining'] = (int) $obj->nb;
+		}
+		$this->db->free($resql);
+
+		if ($result['remaining'] == 0) {
+			$result['done'] = true;
+			return $result;
+		}
+
+		// Batch of error cycles to examine
+		$sql = "SELECT situation_cycle_ref FROM ".MAIN_DB_PREFIX.$this->table_migration;
+		$sql .= " WHERE situation_cycle_ref > ".((int) $last_cycle_ref);
+		$sql .= " AND status = -1";
+		$sql .= " AND entity IN (".$entityList.")";
+		$sql .= " ORDER BY situation_cycle_ref ASC";
+		$sql .= " LIMIT ".((int) $batch_size);
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$result['errors'][] = $this->db->lasterror();
+			$result['done'] = true;
+			return $result;
+		}
+		$cycles = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$cycles[] = (int) $obj->situation_cycle_ref;
+		}
+		$this->db->free($resql);
+
+		foreach ($cycles as $cycle_ref) {
+			$result['processed']++;
+			$result['last_cycle_ref'] = $cycle_ref;
+
+			// Examine the cycle BEFORE correcting: only auto-correct when EVERY invoice and
+			// EVERY line deviation is within the threshold. A single line off by more than the
+			// threshold blocks the whole cycle (kept in error), even if the invoice/cycle totals
+			// happen to match — that is not a rounding difference and must be reviewed manually.
+			$verify = $this->verifyCycle($cycle_ref);
+			if ($verify === false) {
+				$result['errors'][] = $this->error;
+				continue;
+			}
+			if ($this->maxEcartFromDetail($verify['detail']) > $max_ecart) {
+				$result['skipped']++;
+				continue;
+			}
+
+			$nb = $this->applyExpectedValues($cycle_ref, 'cycle');
+			if ($nb < 0) {
+				$result['errors'][] = $this->error;
+				continue;
+			}
+
+			// Re-verify and refresh the stored status after the correction.
+			$verify_after = $this->verifyCycle($cycle_ref);
+			if ($verify_after === false) {
+				$result['errors'][] = $this->error;
+			} elseif ($verify_after['ok']) {
+				$this->setCycleSuccessful($cycle_ref);
+				$result['corrected']++;
+			} else {
+				$this->setCycleError($cycle_ref);
+			}
+		}
+
+		$result['remaining'] -= $result['processed'];
+		$result['done'] = ($result['remaining'] <= 0);
+
+		return $result;
+	}
+
+	/**
 	 * Process one batch of step 3 (delta conversion) for AJAX progress.
 	 *
 	 * Runs migration_step_3() limited to $batch_size cycles, then reports progress by

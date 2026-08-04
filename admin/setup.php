@@ -94,6 +94,9 @@ $form = new Form($db);
 $formSetup->newItem('FACTURESITUATIONMIGRATION_CURRENT_YEAR')->setAsYesNo();
 $item_tolerance = $formSetup->newItem('FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE');
 $item_tolerance->defaultFieldValue = '0';
+// Max absolute deviation (HT and TTC) below which a cycle may be auto-corrected in bulk.
+$item_maxecart = $formSetup->newItem('FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECT');
+$item_maxecart->defaultFieldValue = '0.1';
 
 $setupnotempty += count($formSetup->items);
 

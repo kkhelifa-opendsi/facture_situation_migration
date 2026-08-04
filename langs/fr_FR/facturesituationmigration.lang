@@ -29,6 +29,8 @@ FactureSituationMigrationSetup = Configuration de FactureSituationMigration
 FACTURESITUATIONMIGRATION_CURRENT_YEAR = Migrer uniquement les séries de factures de situations dont le cycle n'est pas terminé
 FACTURESITUATIONMIGRATION_CURRENT_YEARTooltip = En bref on ne touche pas aux vieille factures de situations dont le cycle a été terminé dans les exercices précédents. ATTENTION: si vous activez cette option la visualiation des vieilles factures de situation sera incorrecte (pourcentages cumulés)...
 FACTURESITUATIONMIGRATION_VERIFY_TOLERANCE = Tolérance d'arrondi pour la page de vérification (par défaut 0)
+FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECT = Écart maximal autorisant la correction automatique d'un cycle (par défaut 0.1)
+FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECTTooltip = Lors de la correction en masse depuis la liste des cycles, un cycle n'est corrigé automatiquement que si l'écart absolu de CHAQUE facture ET de CHAQUE ligne (HT, TVA, TTC, taxes locales, devise) est inférieur ou égal à cette valeur. Il suffit qu'une seule ligne dépasse ce seuil pour que tout le cycle soit ignoré et reste en erreur (écart non lié à un simple arrondi, à examiner manuellement).
 
 #
 # About page
@@ -106,6 +108,11 @@ FactureSituationMigrationBackToList=Retour à la liste
 FactureSituationMigrationReverifyAll=Revérifier tous les cycles
 FactureSituationMigrationReverifyConfirm=Relancer la vérification de tous les cycles migrés ? Cette opération peut prendre du temps.
 FactureSituationMigrationReverifyDone=Revérification terminée
+FactureSituationMigrationApplyExpectedAll=Corriger l'écart de tous les cycles
+FactureSituationMigrationCorrectAllConfirm=Corriger automatiquement tous les cycles en erreur dont l'écart (HT et TTC) est inférieur ou égal à %s ? Les cycles avec un écart supérieur seront ignorés. Cette opération modifie les données et peut prendre du temps.
+FactureSituationMigrationCorrectAllDone=Correction en masse terminée
+FactureSituationMigrationCorrected=corrigé(s)
+FactureSituationMigrationSkipped=ignoré(s)
 FactureSituationMigrationRecalculate=Recalculer les totaux factures
 FactureSituationMigrationRecalculateConfirm=Recalculer les totaux de toutes les factures de situation ? Cette opération corrige les totaux corrompus par un update_price en mode 1.
 FactureSituationMigrationRecalcDone=%s factures recalculées avec succès

@@ -723,6 +723,13 @@ if ($cycle_ref > 0) {
 		print '<div class="tabsAction tabsActionNoBottom">';
 		// Re-verify all cycles button
 		print dolGetButtonAction($langs->trans('FactureSituationMigrationReverifyAll'), '', 'default', '#', 'btn-reverify', 1);
+		// Bulk correction dropdown: auto-correct cycles in error whose deviation is within the
+		// configured threshold. The item triggers the AJAX batch process (bound by its id).
+		print fsmCorrectionDropdown(array(array(
+			'label' => 'FactureSituationMigrationApplyExpectedAll',
+			'id' => 'btn-correct-all',
+			'urlraw' => '#',
+		)));
 		// Export CSV button
 		print dolGetButtonAction($langs->trans('FactureSituationMigrationExportCSV'), '', 'default', $_SERVER['PHP_SELF'].'?action=export_csv&token='.newToken().$param, '', 1);
 		print '</div>';
@@ -732,6 +739,14 @@ if ($cycle_ref > 0) {
 		print '<div class="fsm-progress-status"><span id="reverify-status"></span></div>';
 		print '<div class="progress progress-striped" id="reverify-progress-bar" title="0%">';
 		print '<div id="reverify-bar" class="progress-bar progress-bar-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>';
+		print '</div>';
+		print '</div>';
+
+		// Bulk correction progress (hidden by default)
+		print '<div id="correct-progress" class="fsm-progress-container">';
+		print '<div class="fsm-progress-status"><span id="correct-status"></span></div>';
+		print '<div class="progress progress-striped" id="correct-progress-bar" title="0%">';
+		print '<div id="correct-bar" class="progress-bar progress-bar-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>';
 		print '</div>';
 		print '</div>';
 
@@ -1020,7 +1035,9 @@ function fsmCorrectionDropdown($items)
 	$out .= '<a style="margin-right: auto;" class="dropdown-toggle butAction" data-toggle="dropdown">'.$label.'</a>';
 	$out .= '<div class="dropdown-content">';
 	foreach ($items as $it) {
-		$out .= dolGetButtonAction($langs->trans($it['label']), '', 'default', $it['urlraw'], '', 1, array('attr' => (empty($it['attr']) ? array() : $it['attr'])));
+		$it_url = !empty($it['urlraw']) ? $it['urlraw'] : '#';
+		$it_id = !empty($it['id']) ? $it['id'] : '';
+		$out .= dolGetButtonAction($langs->trans($it['label']), '', 'default', $it_url, $it_id, 1, array('attr' => (empty($it['attr']) ? array() : $it['attr'])));
 	}
 	$out .= '</div>';
 	$out .= '</div>';

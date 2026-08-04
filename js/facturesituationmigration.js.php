@@ -356,6 +356,152 @@ if (empty($dolibarr_nocache)) {
 		}
 	};
 
+	window.FactureSituationMigrationCorrect = {
+
+		// Configuration
+		ajaxUrl: '<?php echo dol_buildpath('/facturesituationmigration/ajax/ajax_correct.php', 1); ?>',
+		batchSize: 10,
+		maxEcart: '<?php echo dol_escape_js((string) getDolGlobalString('FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECT', '0.1')); ?>',
+
+		// Translations
+		trans: {
+			confirmCorrect: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationCorrectAllConfirm', getDolGlobalString('FACTURESITUATIONMIGRATION_MAX_ECART_AUTOCORRECT', '0.1'))); ?>',
+			correctDone: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationCorrectAllDone')); ?>',
+			corrected: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationCorrected')); ?>',
+			skipped: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationSkipped')); ?>',
+			cycle: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationCycle')); ?>',
+			error: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('Error')); ?>'
+		},
+
+		// State
+		lastCycleRef: 0,
+		totalProcessed: 0,
+		totalToProcess: 0,
+		totalCorrected: 0,
+		totalSkipped: 0,
+		totalErrors: 0,
+
+		/**
+		 * Initialize the correct-all button
+		 */
+		init: function() {
+			var self = this;
+			$('#btn-correct-all').on('click', function(e) {
+				e.preventDefault();
+				self.start();
+			});
+		},
+
+		/**
+		 * Start the bulk correction process
+		 */
+		start: function() {
+			if (!confirm(this.trans.confirmCorrect)) {
+				return;
+			}
+
+			$('#btn-correct-all').addClass('butActionRefused').removeClass('butAction');
+			$('#correct-progress').show();
+
+			this.lastCycleRef = 0;
+			this.totalProcessed = 0;
+			this.totalToProcess = 0;
+			this.totalCorrected = 0;
+			this.totalSkipped = 0;
+			this.totalErrors = 0;
+
+			this.processBatch();
+		},
+
+		/**
+		 * Process one batch of cycles via AJAX
+		 */
+		processBatch: function() {
+			var self = this;
+
+			$.ajax({
+				url: this.ajaxUrl,
+				type: 'GET',
+				data: {
+					last_cycle_ref: this.lastCycleRef,
+					batch_size: this.batchSize
+				},
+				dataType: 'json',
+				success: function(data) {
+					self.handleBatchResult(data);
+				},
+				error: function(xhr) {
+					$.jnotify(self.trans.error + ': ' + xhr.statusText, 'error', true);
+					$('#correct-bar').removeClass('progress-bar-success').addClass('progress-bar-danger');
+					$('#btn-correct-all').addClass('butAction').removeClass('butActionRefused');
+				}
+			});
+		},
+
+		/**
+		 * Handle the result of a batch
+		 * @param {object} data - JSON response from the AJAX endpoint
+		 */
+		handleBatchResult: function(data) {
+			this.totalProcessed += data.processed;
+			this.totalCorrected += data.corrected;
+			this.totalSkipped += data.skipped;
+			if (this.totalToProcess === 0) {
+				this.totalToProcess = this.totalProcessed + data.remaining;
+			}
+			this.lastCycleRef = data.last_cycle_ref;
+
+			// Display errors via jnotify (sticky)
+			if (data.errors && data.errors.length > 0) {
+				this.totalErrors += data.errors.length;
+				var error_msg = '';
+				for (var i = 0; i < data.errors.length; i++) {
+					error_msg += (error_msg ? '<br>' : '') + data.errors[i];
+				}
+				$.jnotify(error_msg, 'error', true);
+			}
+
+			// Update progress bar
+			var pct = this.totalToProcess > 0 ? Math.round((this.totalProcessed / this.totalToProcess) * 100) : 0;
+			$('#correct-bar').css('width', pct + '%').attr('aria-valuenow', pct);
+			$('#correct-progress-bar').attr('title', pct + '%');
+			$('#correct-status').text(this.totalProcessed + ' / ' + this.totalToProcess + ' (' + pct + '%) - '
+				+ this.totalCorrected + ' ' + this.trans.corrected + ', ' + this.totalSkipped + ' ' + this.trans.skipped);
+
+			if (data.done) {
+				this.onComplete();
+			} else {
+				this.processBatch();
+			}
+		},
+
+		/**
+		 * Called when all batches are done
+		 */
+		onComplete: function() {
+			var msg = this.trans.correctDone + ' (' + this.totalCorrected + ' ' + this.trans.corrected
+				+ ', ' + this.totalSkipped + ' ' + this.trans.skipped;
+			if (this.totalErrors > 0) {
+				msg += ', ' + this.totalErrors + ' ' + this.trans.error + 's';
+			}
+			msg += ')';
+
+			$.jnotify(msg, this.totalErrors > 0 ? 'error' : 'ok', this.totalErrors > 0);
+			$('#correct-status').html('<strong>' + msg + '</strong>');
+
+			if (this.totalErrors > 0) {
+				// Errors occurred: don't reload (errors would be lost), re-enable button
+				$('#correct-bar').removeClass('progress-bar-success').addClass('progress-bar-warning');
+				$('#btn-correct-all').addClass('butAction').removeClass('butActionRefused');
+			} else {
+				// Reload page to refresh the list with the new statuses
+				setTimeout(function() {
+					location.reload();
+				}, 2000);
+			}
+		}
+	};
+
 	// Initialize on document ready
 	$(document).ready(function() {
 		if ($('#btn-reverify').length) {
@@ -363,6 +509,9 @@ if (empty($dolibarr_nocache)) {
 		}
 		if ($('#btn-step3').length) {
 			FactureSituationMigrationStep3.init();
+		}
+		if ($('#btn-correct-all').length) {
+			FactureSituationMigrationCorrect.init();
 		}
 	});
 
