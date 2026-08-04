@@ -2446,7 +2446,7 @@ class FactureSituationMigration
 	 * @param  int  $batch_size  Number of cycles to process in this batch
 	 * @return array             array('processed'=>int, 'remaining'=>int, 'done'=>bool, 'errors'=>string[])
 	 */
-	public function migrationStep3Batch($batch_size = 50)
+	public function migrationStep3Batch($batch_size = 10)
 	{
 		global $conf;
 		$result = array('processed' => 0, 'remaining' => 0, 'done' => false, 'errors' => array());

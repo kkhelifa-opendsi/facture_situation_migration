@@ -227,7 +227,7 @@ if (empty($dolibarr_nocache)) {
 
 		// Configuration
 		ajaxUrl: '<?php echo dol_buildpath('/facturesituationmigration/ajax/ajax_step3.php', 1); ?>',
-		batchSize: 50,
+		batchSize: 10,
 
 		// Translations
 		trans: {

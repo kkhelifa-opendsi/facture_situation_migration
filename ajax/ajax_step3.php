@@ -72,7 +72,7 @@ dol_include_once('custom/facturesituationmigration/class/facturesituationmigrati
 
 $batch_size = GETPOSTINT('batch_size');
 if ($batch_size <= 0) {
-	$batch_size = 50;
+	$batch_size = 10;
 }
 
 $migration = new FactureSituationMigration($db);
