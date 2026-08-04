@@ -569,7 +569,12 @@ if ($cycle_ref > 0) {
 					print '<td class="right nowraponall">' . price($line_expected['total_ht']) . '</td>';
 					print '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($line['ecart_total_ht_ok'], '0', price($line['ecart_total_ht'])) . '</td>';
 					print '<td class="center"' . ($secondary_errors['nb'] > 0 ? ' onclick="jQuery(\'.fsm-sec-line-' . $line_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '"' : '') .'>';
-					print FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error'));
+					if ((int) $line['product_type'] !== 0 && (int) $line['product_type'] !== 1) {
+						// Non-billable line (text/comment/subtotal): not migrated.
+						print dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status');
+					} else {
+						print FactureSituationMigration::badgeStatus($line['line_ok'], 'OK', $langs->trans('Error'));
+					}
 					if ($secondary_errors['nb'] > 0) {
 						print '<i class="fas fa-chevron-down paddingleft paddingleft"></i>';
 						if ($secondary_errors['nb_err'] > 0) {
