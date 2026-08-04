@@ -1527,7 +1527,8 @@ class FactureSituationMigration
 		$credits = array();
 
 		$sql = "SELECT f.rowid as facture_id, f.ref, f.type, f.situation_counter,";
-		$sql .= " f.total_ht, f.total_tva, f.total_ttc";
+		$sql .= " f.total_ht, f.total_tva, f.total_ttc, f.localtax1, f.localtax2,";
+		$sql .= " f.multicurrency_total_ht, f.multicurrency_total_tva, f.multicurrency_total_ttc";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_facture." as f";
 		$sql .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
 		$sql .= " AND f.entity IN (".$entityList.")";
@@ -1548,6 +1549,11 @@ class FactureSituationMigration
 				'total_ht' => (float) $obj->total_ht,
 				'total_tva' => (float) $obj->total_tva,
 				'total_ttc' => (float) $obj->total_ttc,
+				'localtax1' => (float) $obj->localtax1,
+				'localtax2' => (float) $obj->localtax2,
+				'multicurrency_total_ht' => (float) $obj->multicurrency_total_ht,
+				'multicurrency_total_tva' => (float) $obj->multicurrency_total_tva,
+				'multicurrency_total_ttc' => (float) $obj->multicurrency_total_ttc,
 				'lines' => array(),
 			);
 		}
@@ -1558,7 +1564,9 @@ class FactureSituationMigration
 		}
 
 		$sql_lines = "SELECT fd.rowid as line_id, fd.fk_facture, fd.label, fd.description, fd.product_type,";
-		$sql_lines .= " fd.situation_percent, fd.total_ht, fd.total_tva, fd.total_ttc";
+		$sql_lines .= " fd.situation_percent, fd.total_ht, fd.total_tva, fd.total_ttc,";
+		$sql_lines .= " fd.total_localtax1, fd.total_localtax2,";
+		$sql_lines .= " fd.multicurrency_total_ht, fd.multicurrency_total_tva, fd.multicurrency_total_ttc";
 		$sql_lines .= " FROM ".MAIN_DB_PREFIX.$this->table_facturedet." as fd";
 		$sql_lines .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = fd.fk_facture";
 		$sql_lines .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
@@ -1582,6 +1590,11 @@ class FactureSituationMigration
 					'total_ht' => (float) $obj->total_ht,
 					'total_tva' => (float) $obj->total_tva,
 					'total_ttc' => (float) $obj->total_ttc,
+					'total_localtax1' => (float) $obj->total_localtax1,
+					'total_localtax2' => (float) $obj->total_localtax2,
+					'multicurrency_total_ht' => (float) $obj->multicurrency_total_ht,
+					'multicurrency_total_tva' => (float) $obj->multicurrency_total_tva,
+					'multicurrency_total_ttc' => (float) $obj->multicurrency_total_ttc,
 				);
 			}
 			$this->db->free($resql);

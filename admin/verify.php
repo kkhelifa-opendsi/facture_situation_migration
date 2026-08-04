@@ -836,6 +836,27 @@ function printCreditNoteBlock($db, $langs, $cn)
 	$cn_static->ref = $cn['ref'];
 	$cn_static->type = $cn['type'];
 
+	// Secondary amounts (VAT, local taxes, multicurrency): shown as current values only
+	// (credit notes are not migrated, so no backup/expected/deviation), expandable by clicking
+	// the "not migrated" badge - same UX as regular invoice/line rows so no info is lost.
+	$fac_secondary = array(
+		'total_tva' => $langs->trans('VAT'),
+		'localtax1' => $langs->trans('LT1'),
+		'localtax2' => $langs->trans('LT2'),
+		'multicurrency_total_ht' => $langs->trans('MulticurrencyAmountHT'),
+		'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
+		'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
+	);
+	$line_secondary = array(
+		'total_tva' => $langs->trans('VAT'),
+		'total_ttc' => 'TTC',
+		'total_localtax1' => $langs->trans('LT1'),
+		'total_localtax2' => $langs->trans('LT2'),
+		'multicurrency_total_ht' => $langs->trans('MulticurrencyAmountHT'),
+		'multicurrency_total_tva' => $langs->trans('MulticurrencyAmountVAT'),
+		'multicurrency_total_ttc' => $langs->trans('MulticurrencyAmountTTC'),
+	);
+
 	print '<tr class="oddeven">';
 	print '<td' . ($cn_nb_lines > 0 ? ' onclick="jQuery(\'.lines-av-' . $cn_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationShowLines')) . '"' : '') . '>';
 	print $langs->trans('CreditNote');
@@ -853,9 +874,15 @@ function printCreditNoteBlock($db, $langs, $cn)
 	print '<td class="right nowraponall">' . price($cn['total_ttc']) . '</td>';
 	print '<td class="right"></td>';
 	print '<td class="right"></td>';
-	print '<td class="center">' . dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status') . '</td>';
+	print '<td class="center" onclick="jQuery(\'.fsm-sec-av-fac-' . $cn_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '">';
+	print dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status');
+	print '<i class="fas fa-chevron-down paddingleft"></i>';
+	print '</td>';
 	print '<td class="center"></td>';
 	print '</tr>';
+
+	// Facture-level secondary amounts (current values only)
+	print printCreditNoteSecondary($langs, $fac_secondary, $cn, 'fsm-sec-av-fac-' . $cn_id);
 
 	if ($cn_nb_lines > 0) {
 		print '<tr class="liste_titre lines-av-' . $cn_id . ' fsm-lines-hidden">';
@@ -886,11 +913,53 @@ function printCreditNoteBlock($db, $langs, $cn)
 			print '<td class="right nowraponall">' . price($cn_line['total_ht']) . '</td>';
 			print '<td class="right"></td>';
 			print '<td class="right nowraponall">' . price($cn_line['total_ttc']) . '</td>';
-			print '<td class="center"></td>';
+			print '<td class="center" onclick="jQuery(\'.fsm-sec-av-line-' . $cn_line_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationSecondaryAmounts')) . '">';
+			print dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status');
+			print '<i class="fas fa-chevron-down paddingleft"></i>';
+			print '</td>';
 			print '<td class="center"></td>';
 			print '</tr>';
+
+			// Line-level secondary amounts (current values only)
+			print printCreditNoteSecondary($langs, $line_secondary, $cn_line, 'fsm-sec-av-line-' . $cn_line_id);
 		}
 	}
+}
+
+/**
+ * Secondary amounts sub-rows for a credit note (avoir) header or line: one row per field
+ * showing only the CURRENT stored value (credit notes are not migrated, so there is no
+ * backup/expected/deviation to compare). Hidden by default, toggled by the caller's badge.
+ *
+ * @param	Translate	$langs			Language object
+ * @param	array		$fields			field => label map to display
+ * @param	array		$data			Credit note header or line data (holds the field values)
+ * @param	string		$toggle_class	CSS class used to show/hide the sub-rows
+ * @return	string						HTML rows
+ */
+function printCreditNoteSecondary($langs, $fields, $data, $toggle_class)
+{
+	if (empty($fields)) {
+		return '';
+	}
+
+	$out = '<tr class="liste_titre ' . $toggle_class . ' fsm-lines-hidden">';
+	$out .= '<td colspan="3">' . $langs->trans('FactureSituationMigrationDetail') . '</td>';
+	$out .= '<td class="right"></td>';
+	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
+	$out .= '<td colspan="8"></td>';
+	$out .= '</tr>';
+
+	foreach ($fields as $field => $label) {
+		$out .= '<tr class="oddeven ' . $toggle_class . ' fsm-lines-hidden">';
+		$out .= '<td colspan="3">' . dol_escape_htmltag($label) . '</td>';
+		$out .= '<td class="right"></td>';
+		$out .= '<td class="right nowraponall">' . price(isset($data[$field]) ? $data[$field] : 0) . '</td>';
+		$out .= '<td colspan="8"></td>';
+		$out .= '</tr>';
+	}
+
+	return $out;
 }
 
 /**
