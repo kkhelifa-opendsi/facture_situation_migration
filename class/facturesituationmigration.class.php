@@ -1378,7 +1378,7 @@ class FactureSituationMigration
 
 		$from_where = " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
 		$from_where .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
-		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON COALESCE(m.situation_cycle_ref, 0) = COALESCE(bk.situation_cycle_ref, 0)";
+		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON COALESCE(m.situation_cycle_ref, 0) = COALESCE(bk.situation_cycle_ref, 0) AND m.entity = bk.entity";
 		$from_where .= " WHERE COALESCE(bk.situation_cycle_ref, 0) > 0";
 		$from_where .= " AND bk.entity IN (".$entityList.")";
 
