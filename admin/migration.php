@@ -259,7 +259,7 @@ echo '<span class="opacitymedium">'.$langs->trans("FactureSituationMigrationMigr
 			<td class="right">
 				<span class="paddingright"><?php echo $langs->trans('FactureSituationMigrationCyclesDone').': '.$count_done.' / '.$count_all ?></span>
 				<?php if ($step_migration == 2) : ?>
-					<a class="butAction" href="#" id="btn-step3"><?php echo $langs->trans('StepNb', 3); ?></a>
+					<?php echo dolGetButtonAction($langs->trans('StepNb', 3), '', 'default', '#', 'btn-step3'); ?>
 					<div id="step3-progress" class="fsm-progress-container">
 						<div class="fsm-progress-status"><span id="step3-status"></span></div>
 						<div class="progress progress-striped" id="step3-progress-bar" title="0%">

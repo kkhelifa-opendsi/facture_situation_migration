@@ -139,7 +139,7 @@ if ($action == 'edit') {
 } elseif (!empty($formSetup->items)) {
 	print $formSetup->generateOutput();
 	print '<div class="tabsAction">';
-	print '<a class="butAction" href="' . $_SERVER["PHP_SELF"] . '?action=edit&token=' . newToken() . '">' . $langs->trans("Modify") . '</a>';
+	print dolGetButtonAction($langs->trans("Modify"), '', 'default', $_SERVER["PHP_SELF"].'?action=edit&token='.newToken(), '', 1);
 	print '</div>';
 }
 

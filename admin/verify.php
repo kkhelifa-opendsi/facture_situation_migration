@@ -353,17 +353,11 @@ if ($cycle_ref > 0) {
 
 	// Pagination: prev / back / next (right-aligned via load_fiche_titre)
 	$nav_links = '';
-	if ($adjacent !== false && $adjacent['prev'] !== null) {
-		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$params.'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</a> ';
-	} else {
-		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Previous').'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</span> ';
-	}
-	$nav_links .= '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a> ';
-	if ($adjacent !== false && $adjacent['next'] !== null) {
-		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$params.'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></a>';
-	} else {
-		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Next').'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></span>';
-	}
+	$prev_url = ($adjacent !== false && $adjacent['prev'] !== null) ? $_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$params : '';
+	$nav_links .= dolGetButtonAction($langs->trans('Previous'), '<i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous'), 'default', $prev_url, '', ($prev_url ? 1 : -1)).' ';
+	$nav_links .= dolGetButtonAction($langs->trans('FactureSituationMigrationBackToList'), '', 'default', $backtopage, '', 1).' ';
+	$next_url = ($adjacent !== false && $adjacent['next'] !== null) ? $_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$params : '';
+	$nav_links .= dolGetButtonAction($langs->trans('Next'), $langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i>', 'default', $next_url, '', ($next_url ? 1 : -1));
 	print load_fiche_titre('', $nav_links, '');
 
 	// Live verification (also reused below for the detail table). Computed here so the
@@ -372,7 +366,7 @@ if ($cycle_ref > 0) {
 
 	// Title + action buttons (right-aligned)
 	$action_links = '';
-	$action_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=reverify_cycle&cycle_ref='.$cycle_ref.$params.'">'.$langs->trans('FactureSituationMigrationReverifyCycle').'</a> ';
+	$action_links .= dolGetButtonAction($langs->trans('FactureSituationMigrationReverifyCycle'), '', 'default', $_SERVER['PHP_SELF'].'?action=reverify_cycle&cycle_ref='.$cycle_ref.$params, '', 1).' ';
 	// Correction dropdown: only shown when the cycle has errors
 	if ($verify !== false && empty($verify['ok'])) {
 		$cycle_corr_url = array(
@@ -380,18 +374,22 @@ if ($cycle_ref > 0) {
 				'label' => 'FactureSituationMigrationForceCycleOk',
 				'urlraw' => $_SERVER['PHP_SELF'].'?action=force_cycle_ok&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
 				'perm' => 1,
+				'enabled' => true,
 				'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationForceCycleOkConfirm'))."')"),
 			),
 			array(
 				'label' => 'FactureSituationMigrationApplyExpectedCycle',
 				'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
 				'perm' => 1,
+				'enabled' => true,
 				'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedCycleConfirm'))."')"),
 			),
 		);
-		$action_links .= fsmCorrectionDropdown($cycle_corr_url).' ';
+		// Native Dolibarr dropdown: passing an array of buttons as $url builds the dropdown
+		// (see contrat/card.php). The toggle label is the $text argument.
+		$action_links .= dolGetButtonAction('', $langs->trans('FactureSituationMigrationCorrection'), 'default', $cycle_corr_url, '', 1).' ';
 	}
-	$action_links .= '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?action=rollback_cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$params.'" onclick="return confirm(\''.dol_escape_js($langs->trans('FactureSituationMigrationRollbackCycleConfirm')).'\')">'.$langs->trans('FactureSituationMigrationRollbackCycle').'</a>';
+	$action_links .= dolGetButtonAction($langs->trans('FactureSituationMigrationRollbackCycle'), '', 'delete', $_SERVER['PHP_SELF'].'?action=rollback_cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$params, '', 1, array('attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationRollbackCycleConfirm'))."')")));
 	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref), $action_links);
 
 	// Cycle summary from list data
@@ -521,12 +519,11 @@ if ($cycle_ref > 0) {
 			print '</td>';
 			print '<td class="center">';
 			if ((int) $info['type'] == (int) Facture::TYPE_SITUATION && empty($info['facture_ok'])) {
-				$fac_corr_items = array(array(
+				print fsmCorrectionDropdown(array(array(
 					'label' => 'FactureSituationMigrationApplyExpectedFacture',
 					'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=facture&target_id='.((int) $info['facture_id']).'&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
 					'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedFactureConfirm'))."')"),
-				));
-				print fsmCorrectionDropdown($fac_corr_items);
+				)));
 			}
 			print '</td>';
 			print '</tr>';
@@ -582,12 +579,11 @@ if ($cycle_ref > 0) {
 					print '</td>';
 					print '<td class="center">';
 					if (((int) $line['product_type'] === 0 || (int) $line['product_type'] === 1) && empty($line['line_ok'])) {
-						$line_corr_items = array(array(
+						print fsmCorrectionDropdown(array(array(
 							'label' => 'FactureSituationMigrationApplyExpectedLine',
 							'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=line&target_id='.((int) $line_id).'&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
 							'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedLineConfirm'))."')"),
-						));
-						print fsmCorrectionDropdown($line_corr_items);
+						)));
 					}
 					print '</td>';
 					print '</tr>';
@@ -726,9 +722,9 @@ if ($cycle_ref > 0) {
 		// Action buttons
 		print '<div class="tabsAction tabsActionNoBottom">';
 		// Re-verify all cycles button
-		print '<a class="butAction" href="#" id="btn-reverify">' . $langs->trans('FactureSituationMigrationReverifyAll') . '</a>';
+		print dolGetButtonAction($langs->trans('FactureSituationMigrationReverifyAll'), '', 'default', '#', 'btn-reverify', 1);
 		// Export CSV button
-		print '<a class="butAction" href="' . $_SERVER['PHP_SELF'] . '?action=export_csv&token=' . newToken() . $param . '">' . $langs->trans('FactureSituationMigrationExportCSV') . '</a>';
+		print dolGetButtonAction($langs->trans('FactureSituationMigrationExportCSV'), '', 'default', $_SERVER['PHP_SELF'].'?action=export_csv&token='.newToken().$param, '', 1);
 		print '</div>';
 
 		// Re-verify progress (hidden by default)
@@ -997,13 +993,19 @@ function printSecondaryAmountsDetails($secondary_fields, $info, $expected, $coun
 }
 
 /**
- * Build a "Correction" dropdown button. Always renders a native Dolibarr dropdown
- * (same markup as dolGetButtonAction with several sub-buttons), even for a single
- * action - dolGetButtonAction only builds a dropdown from 2+ sub-buttons. Each item
- * link is rendered through dolGetButtonAction to keep the standard button markup.
+ * Build a "Correction" dropdown button, forcing the native Dolibarr dropdown markup even
+ * for a single action.
+ *
+ * dolGetButtonAction() only builds a dropdown when its $url argument is an array of 2+
+ * buttons; a single action renders a plain button. There is no native option to force a
+ * one-item dropdown, so this thin wrapper reproduces core's dropdown-holder markup (same
+ * classes as dolGetButtonAction) and still renders each item link through dolGetButtonAction
+ * to keep the standard button markup and the confirm handlers. Used at facture and line
+ * level (one correction action); the cycle level has 2 actions and uses dolGetButtonAction
+ * with an array directly.
  *
  * @param	array	$items	List of actions: each array('label'=>langkey, 'urlraw'=>url, 'attr'=>array)
- * @return	string			HTML string
+ * @return	string			HTML dropdown
  */
 function fsmCorrectionDropdown($items)
 {
@@ -1015,10 +1017,10 @@ function fsmCorrectionDropdown($items)
 
 	$label = $langs->trans('FactureSituationMigrationCorrection');
 	$out = '<div class="dropdown inline-block dropdown-holder">';
-	$out .= '<a style="margin-right: auto;" class="dropdown-toggle classfortooltip butAction" title="'.dol_escape_htmltag($label).'" data-toggle="dropdown">'.$label.'</a>';
+	$out .= '<a style="margin-right: auto;" class="dropdown-toggle butAction" data-toggle="dropdown">'.$label.'</a>';
 	$out .= '<div class="dropdown-content">';
 	foreach ($items as $it) {
-		$out .= dolGetButtonAction('', $langs->trans($it['label']), 'default', $it['urlraw'], '', 1, array('attr' => (empty($it['attr']) ? array() : $it['attr'])));
+		$out .= dolGetButtonAction($langs->trans($it['label']), '', 'default', $it['urlraw'], '', 1, array('attr' => (empty($it['attr']) ? array() : $it['attr'])));
 	}
 	$out .= '</div>';
 	$out .= '</div>';
