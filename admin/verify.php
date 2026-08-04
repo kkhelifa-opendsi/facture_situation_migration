@@ -182,11 +182,19 @@ if ($action == 'reverify_cycle' && $cycle_ref > 0) {
 
 // Correction: mark a cycle as OK without changing data, or apply expected values
 if (($action == 'force_cycle_ok' || $action == 'apply_expected') && $cycle_ref > 0) {
+	// Capture the neighbouring cycle BEFORE the change, while this cycle is still in the
+	// filtered list. If the correction makes it leave the current filter (e.g. it is no
+	// longer in error), we redirect to that neighbour instead of staying on a cycle that
+	// dropped out of the list, which would break prev/next navigation.
+	$adjacent_before = $migration->getAdjacentCycles($cycle_ref, $search_status, $search_year, $sortfield, $sortorder);
+	$new_status_val = null; // 1 = ok, -1 = error, null = unchanged
+
 	if ($action == 'force_cycle_ok') {
 		$res_corr = $migration->setCycleSuccessful($cycle_ref);
 		if ($res_corr < 0) {
 			setEventMessages($migration->error, null, 'errors');
 		} else {
+			$new_status_val = 1;
 			setEventMessages($langs->trans('FactureSituationMigrationForceCycleOkDone', $cycle_ref), null, 'mesgs');
 		}
 	} else {
@@ -202,15 +210,48 @@ if (($action == 'force_cycle_ok' || $action == 'apply_expected') && $cycle_ref >
 				setEventMessages($migration->error, null, 'errors');
 			} elseif ($verify_corr['ok']) {
 				$migration->setCycleSuccessful($cycle_ref);
+				$new_status_val = 1;
 				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleOk'), null, 'mesgs');
 			} else {
 				$migration->setCycleError($cycle_ref);
+				$new_status_val = -1;
 				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleError'), null, 'warnings');
 			}
 		}
 	}
 
-	header('Location: ' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $cycle_ref . $params);
+	// Does the cycle still match the active status filter after the change?
+	$still_listed = true;
+	if ($new_status_val !== null) {
+		if ($search_status == 'ok') {
+			$still_listed = ($new_status_val == 1);
+		} elseif ($search_status == 'error') {
+			$still_listed = ($new_status_val == -1);
+		} elseif ($search_status == 'not_migrated') {
+			$still_listed = false; // status is now +/-1, no longer "not migrated"
+		}
+		// 'all' and 'migrated' still contain the cycle
+	}
+
+	// Stay on the same cycle if it is still listed; otherwise jump to the neighbour
+	// captured before the change (next in the filtered error list, else previous).
+	$redirect_cycle = $cycle_ref;
+	if (!$still_listed) {
+		$redirect_cycle = 0;
+		if ($adjacent_before !== false) {
+			if ($adjacent_before['next'] !== null) {
+				$redirect_cycle = $adjacent_before['next'];
+			} elseif ($adjacent_before['prev'] !== null) {
+				$redirect_cycle = $adjacent_before['prev'];
+			}
+		}
+	}
+
+	if ($redirect_cycle > 0) {
+		header('Location: ' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $redirect_cycle . $params);
+	} else {
+		header('Location: ' . (!empty($backtopage) ? $backtopage : $_SERVER['PHP_SELF']));
+	}
 	exit;
 }
 

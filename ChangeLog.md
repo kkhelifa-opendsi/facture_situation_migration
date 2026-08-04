@@ -9,6 +9,7 @@
 - MAJ - Vérification rendue indépendante du calcul de migration : pourcentage / HT / taxes locales / HT devise comparés au delta du backup ; TVA vérifiée au niveau facture ; TTC dérivé des composantes attendues pour rester cohérent (ttc = ht + tva + taxes locales).
 - MAJ - Page de vérification : le clic sur le badge OK/Erreur d'une ligne ou d'une facture affiche désormais tous les champs (et plus seulement ceux en écart) ; le badge est toujours dépliable.
 - FIX - Correction des faux positifs de vérification : écarts négatifs aberrants sur la TVA/TTC de ligne (montants sources incohérents en mode 1) et attendu TTC incohérent avec l'attendu HT.
+- FIX - Navigation : après correction (ou passage OK) d'un cycle alors que le filtre « en erreur » est actif, redirection automatique vers le cycle en erreur suivant (le cycle corrigé quitte le filtre) au lieu de rester dessus avec un précédent/suivant cassé.
 - FIX - Correction de la détection de la version installée à l'installation/mise à jour du module.
 - FIX - Correction des alias SQL (AS) dans les requêtes de migration de la table de suivi.
 
