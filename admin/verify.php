@@ -707,7 +707,7 @@ if ($cycle_ref > 0) {
 		print '<div id="reverify-progress" class="fsm-progress-container">';
 		print '<div class="fsm-progress-status"><span id="reverify-status"></span></div>';
 		print '<div class="progress progress-striped" id="reverify-progress-bar" title="0%">';
-		print '<div id="reverify-bar" class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>';
+		print '<div id="reverify-bar" class="progress-bar progress-bar-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>';
 		print '</div>';
 		print '</div>';
 

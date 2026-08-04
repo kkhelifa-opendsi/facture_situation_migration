@@ -52,6 +52,7 @@ FactureSituationMigrationStep2Done = Step 2 completed: cycles indexed in the mig
 FactureSituationMigrationStep3Desc = Conversion des données de la table llx_facturedet
 FactureSituationMigrationStep3Done = Step 3 completed: all situation invoices have been migrated to delta mode
 FactureSituationMigrationStep3BatchDone = %s cycles migrated in this batch, %s still to process
+FactureSituationMigrationStep3Confirm = Start migrating all cycles (automatic batch processing)?
 FactureSituationMigrationStep4Desc = Rollback / Confirmation
 FactureSituationMigrationStep4RollbackDone = Rollback completed: original data restored and mode 1 reactivated
 FactureSituationMigrationCyclesDone = Cycles de facture traités

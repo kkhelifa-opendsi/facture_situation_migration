@@ -223,10 +223,146 @@ if (empty($dolibarr_nocache)) {
 		}
 	};
 
+	window.FactureSituationMigrationStep3 = {
+
+		// Configuration
+		ajaxUrl: '<?php echo dol_buildpath('/facturesituationmigration/ajax/ajax_step3.php', 1); ?>',
+		batchSize: 50,
+
+		// Translations
+		trans: {
+			confirmStep3: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationStep3Confirm')); ?>',
+			step3Done: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationStep3Done')); ?>',
+			cycle: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('FactureSituationMigrationCycle')); ?>',
+			error: '<?php echo dol_escape_js($langs->transnoentitiesnoconv('Error')); ?>'
+		},
+
+		// State
+		totalProcessed: 0,
+		totalToProcess: 0,
+		totalErrors: 0,
+
+		/**
+		 * Initialize the step 3 button
+		 */
+		init: function() {
+			var self = this;
+			$('#btn-step3').on('click', function(e) {
+				e.preventDefault();
+				self.start();
+			});
+		},
+
+		/**
+		 * Start the batch migration process
+		 */
+		start: function() {
+			if (!confirm(this.trans.confirmStep3)) {
+				return;
+			}
+
+			$('#btn-step3').addClass('butActionRefused').removeClass('butAction');
+			$('#step3-progress').show();
+
+			this.totalProcessed = 0;
+			this.totalToProcess = 0;
+			this.totalErrors = 0;
+
+			this.processBatch();
+		},
+
+		/**
+		 * Process one batch of cycles via AJAX
+		 */
+		processBatch: function() {
+			var self = this;
+
+			$.ajax({
+				url: this.ajaxUrl,
+				type: 'GET',
+				data: {
+					batch_size: this.batchSize
+				},
+				dataType: 'json',
+				success: function(data) {
+					self.handleBatchResult(data);
+				},
+				error: function(xhr) {
+					$.jnotify(self.trans.error + ': ' + xhr.statusText, 'error', true);
+					$('#step3-bar').removeClass('progress-bar-success').addClass('progress-bar-danger');
+					$('#btn-step3').addClass('butAction').removeClass('butActionRefused');
+				}
+			});
+		},
+
+		/**
+		 * Handle the result of a batch
+		 * @param {object} data - JSON response from the AJAX endpoint
+		 */
+		handleBatchResult: function(data) {
+			this.totalProcessed += data.processed;
+			if (this.totalToProcess === 0) {
+				this.totalToProcess = this.totalProcessed + data.remaining;
+			}
+
+			// Display errors via jnotify (sticky)
+			if (data.errors && data.errors.length > 0) {
+				this.totalErrors += data.errors.length;
+				var error_msg = '';
+				for (var i = 0; i < data.errors.length; i++) {
+					error_msg += (error_msg ? '<br>' : '') + data.errors[i];
+				}
+				$.jnotify(error_msg, 'error', true);
+			}
+
+			// Update progress bar
+			var pct = this.totalToProcess > 0 ? Math.round((this.totalProcessed / this.totalToProcess) * 100) : 0;
+			$('#step3-bar').css('width', pct + '%').attr('aria-valuenow', pct);
+			$('#step3-progress-bar').attr('title', pct + '%');
+			$('#step3-status').text(this.totalProcessed + ' / ' + this.totalToProcess + ' (' + pct + '%)');
+
+			if (data.done) {
+				this.onComplete(data.remaining);
+			} else {
+				this.processBatch();
+			}
+		},
+
+		/**
+		 * Called when the batch loop stops.
+		 * @param {number} remaining - cycles still pending (0 = migration fully complete)
+		 */
+		onComplete: function(remaining) {
+			var msg = this.trans.step3Done + ' (' + this.totalProcessed + ' ' + this.trans.cycle + 's';
+			if (this.totalErrors > 0) {
+				msg += ', ' + this.totalErrors + ' ' + this.trans.error + 's';
+			}
+			msg += ')';
+
+			$.jnotify(msg, this.totalErrors > 0 ? 'error' : 'ok', this.totalErrors > 0);
+			$('#step3-status').html('<strong>' + msg + '</strong>');
+
+			// Reload as soon as the migration is complete (nothing left to process), so the
+			// page advances to step 4 - even if some batches reported errors along the way.
+			// Only stay (to keep errors visible and allow a retry) if cycles remain pending.
+			if (remaining > 0) {
+				$('#step3-bar').removeClass('progress-bar-success').addClass('progress-bar-warning');
+				$('#btn-step3').addClass('butAction').removeClass('butActionRefused');
+			} else {
+				setTimeout(function() {
+					location.reload();
+				}, 2000);
+			}
+		}
+	};
+
 	// Initialize on document ready
 	$(document).ready(function() {
 		if ($('#btn-reverify').length) {
 			FactureSituationMigrationVerify.init();
+		}
+		if ($('#btn-step3').length) {
+			FactureSituationMigrationStep3.init();
 		}
 	});
 

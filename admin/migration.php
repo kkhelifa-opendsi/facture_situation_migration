@@ -131,35 +131,7 @@ switch ($action) {
 		}
 	break;
 
-	// ETAPE 3
-	case 'doStep3':
-		$errorList = array();
-		$result = $migration->migration_step_3($errorList);
-		if ($result >= 0) {
-			// On check combien il en reste
-			$count_todo = $migration->countMigrationToDo();
-			if ($count_todo < 0) {
-				setEventMessages($migration->error, null, 'errors');
-			} elseif ($count_todo == 0) {
-				dolibarr_set_const($db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
-
-				dol_syslog('constant MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=3', LOG_DEBUG, 0, '_situationmigration');
-
-				$step_migration = 3;
-				setEventMessages($langs->trans('FactureSituationMigrationStep3Done'), null, 'mesgs');
-			} elseif (!empty($migration->warning)) {
-				setEventMessages($migration->warning, null, 'warnings');
-			} else {
-				setEventMessages($langs->trans('FactureSituationMigrationStep3BatchDone', $result, $count_todo), null, 'mesgs');
-			}
-		} elseif ($result == -1) {
-			// Partial errors
-			setEventMessages($migration->warning, $errorList, 'warnings');
-		} else {
-			// -2 : total failure
-			setEventMessages($migration->error, $errorList, 'errors');
-		}
-	break;
+	// ETAPE 3 : traitée en AJAX par lots (voir ajax/ajax_step3.php et js/facturesituationmigration.js.php)
 
 	case 'doStep4':
 		if (GETPOSTISSET('setrollback')) {
@@ -204,6 +176,15 @@ if ($step_migration >= 2) {
 		setEventMessages($migration->error, null, 'errors');
 	}
 	$count_done = $count_all - $count_todo;
+
+	// Step 3 auto-completion: if we are still on step 2 but there is nothing left to
+	// process (all cycles migrated), step 3 is effectively done. Advance the step here so
+	// the page reveals step 4 on load, independently of the AJAX batch/JS state.
+	if ($step_migration == 2 && $count_todo === 0 && $count_all > 0) {
+		dolibarr_set_const($db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
+		dol_syslog('constant MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP=3 (auto, nothing left to migrate)', LOG_DEBUG, 0, '_situationmigration');
+		$step_migration = 3;
+	}
 }
 
 
@@ -215,7 +196,9 @@ $form = new Form($db);
 $help_url = '';
 $page_name = "FactureSituationMigrationMigration";
 
-llxHeader('', $langs->trans($page_name), $help_url);
+$arrayofjs = array('/facturesituationmigration/js/facturesituationmigration.js.php');
+$arrayofcss = array('/facturesituationmigration/css/facturesituationmigration.css');
+llxHeader('', $langs->trans($page_name), $help_url, '', 0, 0, $arrayofjs, $arrayofcss);
 
 // Subheader
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.$langs->trans("BackToModuleList").'</a>';
@@ -276,11 +259,13 @@ echo '<span class="opacitymedium">'.$langs->trans("FactureSituationMigrationMigr
 			<td class="right">
 				<span class="paddingright"><?php echo $langs->trans('FactureSituationMigrationCyclesDone').': '.$count_done.' / '.$count_all ?></span>
 				<?php if ($step_migration == 2) : ?>
-					<form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>" style="display:inline-block;">
-						<input type="hidden" name="token" value="<?php echo newtoken(); ?>">
-						<input type="hidden" name="action" value="doStep3">
-						<input type="submit" class="button small reposition" value="<?php echo $langs->trans('StepNb', 3); ?>">
-					</form>
+					<a class="butAction" href="#" id="btn-step3"><?php echo $langs->trans('StepNb', 3); ?></a>
+					<div id="step3-progress" class="fsm-progress-container">
+						<div class="fsm-progress-status"><span id="step3-status"></span></div>
+						<div class="progress progress-striped" id="step3-progress-bar" title="0%">
+							<div id="step3-bar" class="progress-bar progress-bar-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+						</div>
+					</div>
 				<?php elseif ($step_migration > 2) : echo $langs->trans('ActionDoneShort').' <i class="fas fa-check" style="color:green"></i>'; endif; ?>
 			</td>
 		</tr>

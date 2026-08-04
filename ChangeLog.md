@@ -1,6 +1,7 @@
 # CHANGELOG FACTURESITUATIONMIGRATION FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
 ## Staging
+- NEW - Migration étape 3 : traitement automatique par lots via AJAX avec barre de progression (plus besoin de cliquer pour chaque lot). Nouvelle méthode `migrationStep3Batch()`, endpoint `ajax/ajax_step3.php` ; arrêt automatique si un lot ne progresse plus (évite une boucle infinie sur des cycles en erreur). L'écran passe automatiquement à l'étape 4 dès qu'il ne reste plus rien à migrer (auto-complétion au chargement de la page, indépendante du JS). Ancien handler POST `doStep3` supprimé.
 - NEW - Écran de vérification : boutons « Correction » (menu déroulant, via `dolGetButtonAction`) aux niveaux cycle, facture et ligne, affichés uniquement en cas d'écart. Au niveau cycle : « Considérer le cycle comme OK » (sans modifier les données) et « Appliquer les valeurs attendues ».
 - NEW - Application des valeurs attendues : ne corrige que les lignes réellement en écart (les lignes/factures correctes ne sont jamais réécrites). Pour chaque facture : forçage en dur des totaux d'en-tête au montant réglé si la facture est intégralement payée (`paye = 1` ou reste à payer nul), sinon recalcul des totaux depuis les lignes. Revérification du cycle après correction avec affichage du résultat.
 - NEW - Vérification : `getVerificationCycleDetail` expose le statut de paiement par facture ; une facture intégralement payée dont l'écart au backup est corrigé est considérée OK même si son en-tête diffère de la somme des lignes d'un centime (arrondi mode 1↔mode 2).

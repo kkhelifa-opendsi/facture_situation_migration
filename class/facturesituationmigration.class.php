@@ -2172,4 +2172,66 @@ class FactureSituationMigration
 
 		return $result;
 	}
+
+	/**
+	 * Process one batch of step 3 (delta conversion) for AJAX progress.
+	 *
+	 * Runs migration_step_3() limited to $batch_size cycles, then reports progress by
+	 * comparing the pending-cycle count before and after. When nothing remains, the module
+	 * step constant is advanced to 3. If a batch makes no progress (all attempted cycles
+	 * failed and were rolled back, staying pending), it stops with done=true to avoid an
+	 * infinite AJAX loop; the errors are returned so the user can act on them.
+	 *
+	 * @param  int  $batch_size  Number of cycles to process in this batch
+	 * @return array             array('processed'=>int, 'remaining'=>int, 'done'=>bool, 'errors'=>string[])
+	 */
+	public function migrationStep3Batch($batch_size = 50)
+	{
+		global $conf;
+		$result = array('processed' => 0, 'remaining' => 0, 'done' => false, 'errors' => array());
+
+		$before = $this->countMigrationToDo();
+		if ($before < 0) {
+			$result['errors'][] = $this->error;
+			$result['done'] = true;
+			return $result;
+		}
+		if ($before == 0) {
+			$result['done'] = true;
+			dolibarr_set_const($this->db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
+			return $result;
+		}
+
+		// Process one batch.
+		$this->cycle_limit = max(1, (int) $batch_size);
+		$errorList = array();
+		$res = $this->migration_step_3($errorList);
+		if (!empty($errorList)) {
+			$result['errors'] = $errorList;
+		} elseif ($res < 0 && !empty($this->error)) {
+			$result['errors'][] = $this->error;
+		}
+
+		$after = $this->countMigrationToDo();
+		if ($after < 0) {
+			$result['errors'][] = $this->error;
+			$after = 0;
+		}
+
+		$result['processed'] = max(0, $before - $after);
+		$result['remaining'] = $after;
+		$result['done'] = ($after <= 0);
+
+		// No progress but cycles remain: all attempted cycles failed. Stop to avoid an
+		// infinite loop (the same failing cycles would be retried endlessly).
+		if (!$result['done'] && $result['processed'] == 0) {
+			$result['done'] = true;
+		}
+
+		if ($result['done'] && $after == 0) {
+			dolibarr_set_const($this->db, 'MAIN_MODULE_FACTURESITUATIONMIGRATION_STEP', '3', 'chaine', 0, '', $conf->entity);
+		}
+
+		return $result;
+	}
 }
