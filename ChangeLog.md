@@ -3,6 +3,7 @@
 ## Non Distribué
 
 ## 0.5
+- FIX - Affiche dans divers lors de la modification de INVOICE_USE_SITUATION à 2
 - FIX - Liste des cycles : le statut d'un cycle n'est plus faussé par un cycle portant le même numéro dans une autre entité. La jointure sur la table de suivi (`getVerificationCyclesList`) ignorait l'entité, mélangeant les statuts (`MIN(status)`) et doublant les totaux du backup ; un cycle OK apparaissait « en erreur » si le même numéro de cycle était en erreur dans une autre entité.
 - NEW - Migration étape 3 : traitement automatique par lots de 10 cycles via AJAX avec barre de progression (plus besoin de cliquer pour chaque lot). Nouvelle méthode `migrationStep3Batch()`, endpoint `ajax/ajax_step3.php` ; arrêt automatique si un lot ne progresse plus (évite une boucle infinie sur des cycles en erreur). L'écran passe automatiquement à l'étape 4 dès qu'il ne reste plus rien à migrer (auto-complétion au chargement de la page, indépendante du JS). Ancien handler POST `doStep3` supprimé.
 - NEW - Écran de vérification : boutons « Correction » (menu déroulant, via `dolGetButtonAction`) aux niveaux cycle, facture et ligne, affichés uniquement en cas d'écart. Au niveau cycle : « Considérer le cycle comme OK » (sans modifier les données) et « Appliquer les valeurs attendues ».
