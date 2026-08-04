@@ -153,6 +153,165 @@ class FactureSituationMigration
 	}
 
 	/**
+	 * Apply the expected (post-migration) values to invoice lines, then recompute
+	 * invoice totals. Used by the verification screen to manually reconcile a single
+	 * line, a whole invoice, or a whole cycle with the values the verification expects.
+	 *
+	 * Only billable situation lines (product_type 0/1) actually in error (line_ok = false)
+	 * are touched; correct lines/invoices are never rewritten. Line amounts written are the
+	 * ones in $detail[...]['expected']. Everything runs in a single transaction.
+	 *
+	 * Invoice total handling:
+	 *  - scope 'line': the invoice totals are recomputed from its lines (update_price).
+	 *  - scope 'facture'/'cycle', for each invoice in error or just modified:
+	 *      * fully paid invoice (paye = 1 or getRemainToPay() <= 0): the header totals are FORCED to the
+	 *        expected (paid/backup) amount - the payment is the source of truth, so we do not
+	 *        recompute from lines (header may then differ from the line sum by a rounding cent,
+	 *        tolerated in the checks for fully paid invoices);
+	 *      * not fully paid: the header is recomputed from the corrected lines (update_price).
+	 *
+	 * INVOICE_USE_SITUATION is forced to 2 in memory so update_price does not subtract
+	 * previous situation invoices.
+	 *
+	 * @param  int     $cycle_ref  Situation cycle reference
+	 * @param  string  $scope      'cycle' (all invoices), 'facture' (one invoice), 'line' (one line)
+	 * @param  int     $target_id  Invoice id (scope=facture) or line id (scope=line)
+	 * @return int                 Number of corrections applied (lines + forced invoices), or -1 on error
+	 */
+	public function applyExpectedValues($cycle_ref, $scope = 'cycle', $target_id = 0)
+	{
+		global $conf, $langs;
+		$langs->load('facturesituationmigration@facturesituationmigration');
+		$this->error = '';
+
+		$detail = $this->getVerificationCycleDetail($cycle_ref, 0);
+		if ($detail === false) {
+			return -1;
+		}
+
+		// Force mode 2 in memory so update_price does not subtract previous invoices.
+		$conf->global->INVOICE_USE_SITUATION = '2';
+
+		$fields = array('situation_percent', 'total_ht', 'total_tva', 'total_ttc', 'total_localtax1', 'total_localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+		// llx_facture header total columns forced for fully paid invoices.
+		$fac_fields = array('total_ht', 'total_tva', 'total_ttc', 'localtax1', 'localtax2', 'multicurrency_total_ht', 'multicurrency_total_tva', 'multicurrency_total_ttc');
+
+		$this->db->begin();
+		$nb = 0;
+
+		foreach ($detail as $counter => $info) {
+			if ((int) $info['type'] !== (int) Facture::TYPE_SITUATION) {
+				continue;
+			}
+			if ($scope === 'facture' && (int) $info['facture_id'] !== (int) $target_id) {
+				continue;
+			}
+
+			$facture_id = (int) $info['facture_id'];
+			$touched = 0;
+
+			// 1) Correct billable lines in error (scope=line restricts to the target line).
+			foreach ($info['lines'] as $line_id => $line) {
+				if ($scope === 'line' && (int) $line_id !== (int) $target_id) {
+					continue;
+				}
+				if ((int) $line['product_type'] !== 0 && (int) $line['product_type'] !== 1) {
+					continue;
+				}
+				// Only correct lines actually in error; leave already-correct lines untouched.
+				if (!empty($line['line_ok']) || empty($line['expected'])) {
+					continue;
+				}
+				$exp = $line['expected'];
+
+				$set = array();
+				foreach ($fields as $f) {
+					$set[] = " " . $f . " = '" . price2num($exp[$f]) . "'";
+				}
+				$sql = "UPDATE " . MAIN_DB_PREFIX . $this->table_facturedet . " SET" . implode(',', $set);
+				$sql .= " WHERE rowid = " . ((int) $line_id);
+
+				$res = $this->db->query($sql);
+				if (!$res) {
+					$this->error = $langs->trans('FactureSituationMigrationErrorApplyExpectedLine', $line_id, $this->db->lasterror());
+					dol_syslog('applyExpectedValues UPDATE failed line=' . $line_id . ': ' . $this->db->lasterror() . ' sql=' . $sql, LOG_ERR, 0, '_situationmigration');
+					$this->db->rollback();
+					return -1;
+				}
+				$nb++;
+				$touched++;
+			}
+
+			// 2) Invoice total handling.
+			if ($scope === 'line') {
+				// Line correction: recompute the invoice totals from its lines.
+				if ($touched > 0 && $this->recomputeInvoicePrice($facture_id) < 0) {
+					$this->db->rollback();
+					return -1;
+				}
+			} elseif (empty($info['facture_ok']) || $touched > 0) {
+				// Facture / cycle scope, only for invoices in error or just modified.
+				if (!empty($info['fully_paid'])) {
+					// Fully paid invoice: force the header totals to the expected (paid) amount.
+					// The payment is the source of truth, so we do NOT recompute from lines
+					// (the header may then differ from the line sum by a rounding cent; this is
+					// tolerated for fully paid invoices in the verification checks).
+					$exp = $info['expected'];
+					$set = array();
+					foreach ($fac_fields as $f) {
+						$set[] = " " . $f . " = '" . price2num($exp[$f]) . "'";
+					}
+					$sql = "UPDATE " . MAIN_DB_PREFIX . $this->table_facture . " SET" . implode(',', $set);
+					$sql .= " WHERE rowid = " . $facture_id;
+					$res = $this->db->query($sql);
+					if (!$res) {
+						$this->error = $langs->trans('FactureSituationMigrationErrorApplyExpectedUpdatePrice', $facture_id, $this->db->lasterror());
+						dol_syslog('applyExpectedValues force invoice failed id=' . $facture_id . ': ' . $this->db->lasterror() . ' sql=' . $sql, LOG_ERR, 0, '_situationmigration');
+						$this->db->rollback();
+						return -1;
+					}
+					$nb++;
+				} elseif ($touched > 0) {
+					// Not fully paid: recompute the header from the corrected lines.
+					if ($this->recomputeInvoicePrice($facture_id) < 0) {
+						$this->db->rollback();
+						return -1;
+					}
+				}
+			}
+		}
+
+		$this->db->commit();
+		dol_syslog('applyExpectedValues cycle=' . $cycle_ref . ' scope=' . $scope . ' target=' . $target_id . ' -> ' . $nb . ' correction(s)', LOG_DEBUG, 0, '_situationmigration');
+		return $nb;
+	}
+
+	/**
+	 * Reload an invoice and recompute its header totals from its lines.
+	 * Relies on INVOICE_USE_SITUATION being forced to 2 in memory by the caller.
+	 *
+	 * @param  int  $facture_id  Invoice id
+	 * @return int               1 on success, -1 on error ($this->error set)
+	 */
+	private function recomputeInvoicePrice($facture_id)
+	{
+		global $langs;
+
+		$fac = new Facture($this->db);
+		if ($fac->fetch($facture_id) <= 0) {
+			$this->error = $langs->trans('FactureSituationMigrationErrorApplyExpectedFetch', $facture_id);
+			dol_syslog('recomputeInvoicePrice fetch failed for invoice=' . $facture_id, LOG_ERR, 0, '_situationmigration');
+			return -1;
+		}
+		if ($fac->update_price(1) < 0) {
+			$this->error = $langs->trans('FactureSituationMigrationErrorApplyExpectedUpdatePrice', $facture_id, $fac->error);
+			dol_syslog('recomputeInvoicePrice update_price failed for invoice=' . $facture_id . ': ' . $fac->error, LOG_ERR, 0, '_situationmigration');
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
 	 * Count distinct cycles still pending migration (done=0).
 	 *
 	 * @return int  Number of cycles to do, or -1 on SQL error
@@ -1411,9 +1570,24 @@ class FactureSituationMigration
 						'multicurrency_total_ttc' => (float) $obj->bk_multi_ttc,
 					),
 					'lines' => array(),
+					'fully_paid' => false,
 				);
 		}
 		$this->db->free($resql);
+
+		// Payment status per invoice: a fully paid invoice (nothing left to pay) has its
+		// total locked by the payment. Used to decide the correction strategy (force the
+		// header to the paid/backup amount) and to consider such an invoice OK in the
+		// checks even if its forced header differs from the sum of lines by a rounding cent.
+		foreach ($detail as $pay_counter => $pay_info) {
+			$tmpfac = new Facture($this->db);
+			if ($tmpfac->fetch($pay_info['facture_id']) > 0) {
+				// Fully paid = flagged paid OR nothing left to pay. The "paye" flag is kept
+				// because a migrated invoice whose total drifted by a rounding cent can show a
+				// tiny getRemainToPay() > 0 while it was actually paid in full.
+				$detail[$pay_counter]['fully_paid'] = ((int) $tmpfac->paye === 1 || (float) $tmpfac->getRemainToPay() <= 0);
+			}
+		}
 
 		// Lines: current vs backup
 		$sql_lines = "SELECT fd.rowid as line_id, fd.label, fd.description, fd.fk_prev_id, fd.product_type,";
@@ -1708,6 +1882,12 @@ class FactureSituationMigration
 		$check2_details = '';
 		$entityList = getEntity('facture');
 		foreach ($detail as $counter => $info) {
+			// A fully paid invoice whose total already matches the backup (the paid amount)
+			// is reconciled to the payment: its header is intentionally forced to that amount
+			// and may differ from the sum of lines by a rounding cent. Consider it OK here.
+			if (!empty($info['fully_paid']) && !empty($info['ecart_total_ht_ok']) && !empty($info['ecart_total_ttc_ok'])) {
+				continue;
+			}
 			$sql = "SELECT SUM(fd.total_ht) as sum_ht";
 			$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_facturedet." as fd";
 			$sql .= " WHERE fd.fk_facture = ".((int) $info['facture_id']);

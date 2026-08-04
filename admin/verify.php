@@ -68,6 +68,8 @@ if (!$user->admin) {
 $action = GETPOST('action', 'aZ09');
 $backtopage = GETPOST('backtopage', 'alpha');
 $cycle_ref = GETPOSTINT('cycle_ref');
+$scope = GETPOST('scope', 'aZ09');
+$target_id = GETPOSTINT('target_id');
 $search_status = GETPOST('search_status', 'alpha');
 $search_year = GETPOSTINT('search_year');
 
@@ -97,6 +99,25 @@ $pagenext = $page + 1;
 
 $migration = new FactureSituationMigration($db);
 
+// Build base URL for prev/next (preserve filters)
+$params = '';
+if ($search_status != 'all') {
+	$params .= '&search_status='.urlencode($search_status);
+}
+if ($search_year > 0) {
+	$params .= '&search_year='.$search_year;
+}
+if ($sortfield != 'cycle_ref') {
+	$params .= '&sortfield='.urlencode($sortfield);
+}
+if ($sortorder != 'ASC') {
+	$params .= '&sortorder='.urlencode($sortorder);
+}
+if (!empty($backtopage)) {
+	$params .= '&backtopage='.urlencode($backtopage);
+}
+
+
 /*
  * Actions
  */
@@ -123,22 +144,7 @@ if ($action == 'rollback_cycle' && $cycle_ref > 0) {
 		}
 
 		if ($redirect_cycle > 0) {
-			$redirect_url = $_SERVER['PHP_SELF'].'?cycle_ref='.$redirect_cycle;
-			if ($search_status != 'all') {
-				$redirect_url .= '&search_status='.urlencode($search_status);
-			}
-			if ($search_year > 0) {
-				$redirect_url .= '&search_year='.$search_year;
-			}
-			if ($sortfield) {
-				$redirect_url .= '&sortfield='.urlencode($sortfield);
-			}
-			if ($sortorder) {
-				$redirect_url .= '&sortorder='.urlencode($sortorder);
-			}
-			if ($backtopage) {
-				$redirect_url .= '&backtopage='.urlencode($backtopage);
-			}
+			$redirect_url = $_SERVER['PHP_SELF'].'?cycle_ref='.$redirect_cycle . $params;
 		} else {
 			$redirect_url = !empty($backtopage) ? $backtopage : $_SERVER['PHP_SELF'];
 		}
@@ -169,24 +175,42 @@ if ($action == 'reverify_cycle' && $cycle_ref > 0) {
 			}
 		}
 	}
-	// Rebuild URL with current params for redirect (PRG)
-	$redirect_url = $_SERVER['PHP_SELF'].'?cycle_ref='.$cycle_ref;
-	if ($search_status != 'all') {
-		$redirect_url .= '&search_status='.urlencode($search_status);
+
+	header('Location: '.$_SERVER['PHP_SELF'].'?cycle_ref='.$cycle_ref.$params);
+	exit;
+}
+
+// Correction: mark a cycle as OK without changing data, or apply expected values
+if (($action == 'force_cycle_ok' || $action == 'apply_expected') && $cycle_ref > 0) {
+	if ($action == 'force_cycle_ok') {
+		$res_corr = $migration->setCycleSuccessful($cycle_ref);
+		if ($res_corr < 0) {
+			setEventMessages($migration->error, null, 'errors');
+		} else {
+			setEventMessages($langs->trans('FactureSituationMigrationForceCycleOkDone', $cycle_ref), null, 'mesgs');
+		}
+	} else {
+		$nb_corr = $migration->applyExpectedValues($cycle_ref, $scope, $target_id);
+		if ($nb_corr < 0) {
+			setEventMessages($migration->error, null, 'errors');
+		} else {
+			setEventMessages($langs->trans('FactureSituationMigrationApplyExpectedDone', $nb_corr), null, 'mesgs');
+			// Always re-verify the whole cycle after the correction and refresh its status,
+			// reporting the outcome so the user sees whether the cycle is now clean.
+			$verify_corr = $migration->verifyCycle($cycle_ref, $tolerance);
+			if ($verify_corr === false) {
+				setEventMessages($migration->error, null, 'errors');
+			} elseif ($verify_corr['ok']) {
+				$migration->setCycleSuccessful($cycle_ref);
+				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleOk'), null, 'mesgs');
+			} else {
+				$migration->setCycleError($cycle_ref);
+				setEventMessages($langs->trans('FactureSituationMigrationReverifyCycleError'), null, 'warnings');
+			}
+		}
 	}
-	if ($search_year > 0) {
-		$redirect_url .= '&search_year='.$search_year;
-	}
-	if ($sortfield) {
-		$redirect_url .= '&sortfield='.urlencode($sortfield);
-	}
-	if ($sortorder) {
-		$redirect_url .= '&sortorder='.urlencode($sortorder);
-	}
-	if ($backtopage) {
-		$redirect_url .= '&backtopage='.urlencode($backtopage);
-	}
-	header('Location: '.$redirect_url);
+
+	header('Location: ' . $_SERVER['PHP_SELF'] . '?cycle_ref=' . $cycle_ref . $params);
 	exit;
 }
 
@@ -286,43 +310,47 @@ if ($cycle_ref > 0) {
 		setEventMessages($migration->error, null, 'errors');
 	}
 
-	// Build base URL for prev/next (preserve filters)
-	$nav_params = '';
-	if ($search_status != 'all') {
-		$nav_params .= '&search_status='.urlencode($search_status);
-	}
-	if ($search_year > 0) {
-		$nav_params .= '&search_year='.$search_year;
-	}
-	if ($sortfield != 'cycle_ref') {
-		$nav_params .= '&sortfield='.urlencode($sortfield);
-	}
-	if ($sortorder != 'ASC') {
-		$nav_params .= '&sortorder='.urlencode($sortorder);
-	}
-	if (!empty($backtopage)) {
-		$nav_params .= '&backtopage='.urlencode($backtopage);
-	}
-
 	// Pagination: prev / back / next (right-aligned via load_fiche_titre)
 	$nav_links = '';
 	if ($adjacent !== false && $adjacent['prev'] !== null) {
-		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$nav_params.'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</a> ';
+		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['prev'].$params.'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</a> ';
 	} else {
 		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Previous').'"><i class="fas fa-chevron-left paddingright"></i>'.$langs->trans('Previous').'</span> ';
 	}
 	$nav_links .= '<a href="'.$backtopage.'" class="butAction">'.$langs->trans('FactureSituationMigrationBackToList').'</a> ';
 	if ($adjacent !== false && $adjacent['next'] !== null) {
-		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$nav_params.'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></a>';
+		$nav_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?cycle_ref='.$adjacent['next'].$params.'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></a>';
 	} else {
 		$nav_links .= '<span class="butActionRefused classfortooltip" title="'.$langs->trans('Next').'">'.$langs->trans('Next').'<i class="fas fa-chevron-right paddingleft"></i></span>';
 	}
 	print load_fiche_titre('', $nav_links, '');
 
+	// Live verification (also reused below for the detail table). Computed here so the
+	// correction button can be shown only when the cycle actually has errors.
+	$verify = $migration->verifyCycle($cycle_ref, $tolerance);
+
 	// Title + action buttons (right-aligned)
 	$action_links = '';
-	$action_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=reverify_cycle&cycle_ref='.$cycle_ref.$nav_params.'">'.$langs->trans('FactureSituationMigrationReverifyCycle').'</a> ';
-	$action_links .= '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?action=rollback_cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$nav_params.'" onclick="return confirm(\''.dol_escape_js($langs->trans('FactureSituationMigrationRollbackCycleConfirm')).'\')">'.$langs->trans('FactureSituationMigrationRollbackCycle').'</a>';
+	$action_links .= '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=reverify_cycle&cycle_ref='.$cycle_ref.$params.'">'.$langs->trans('FactureSituationMigrationReverifyCycle').'</a> ';
+	// Correction dropdown: only shown when the cycle has errors
+	if ($verify !== false && empty($verify['ok'])) {
+		$cycle_corr_url = array(
+			array(
+				'label' => 'FactureSituationMigrationForceCycleOk',
+				'urlraw' => $_SERVER['PHP_SELF'].'?action=force_cycle_ok&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
+				'perm' => 1,
+				'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationForceCycleOkConfirm'))."')"),
+			),
+			array(
+				'label' => 'FactureSituationMigrationApplyExpectedCycle',
+				'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
+				'perm' => 1,
+				'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedCycleConfirm'))."')"),
+			),
+		);
+		$action_links .= fsmCorrectionDropdown($cycle_corr_url).' ';
+	}
+	$action_links .= '<a class="butActionDelete" href="'.$_SERVER['PHP_SELF'].'?action=rollback_cycle&token='.newToken().'&cycle_ref='.$cycle_ref.$params.'" onclick="return confirm(\''.dol_escape_js($langs->trans('FactureSituationMigrationRollbackCycleConfirm')).'\')">'.$langs->trans('FactureSituationMigrationRollbackCycle').'</a>';
 	print load_fiche_titre($langs->trans('FactureSituationMigrationCycleRef', $cycle_ref), $action_links);
 
 	// Cycle summary from list data
@@ -338,7 +366,6 @@ if ($cycle_ref > 0) {
 			}
 		}
 	}
-	$verify = $migration->verifyCycle($cycle_ref, $tolerance);
 
 	if ($verify === false) {
 		// SQL error
@@ -366,6 +393,7 @@ if ($cycle_ref > 0) {
 			print '<td class="right"></td>';
 			print '<td class="right">' . $langs->trans('FactureSituationMigrationDeviationTTC') . '</td>';
 			print '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+			print '<td class="center"></td>';
 			print '</tr>';
 			$row_class = $cycle_summary['status_ok'] ? '' : ' fsm-row-error';
 			print '<tr class="oddeven' . $row_class . '">';
@@ -381,7 +409,7 @@ if ($cycle_ref > 0) {
 			print '<td class="right"></td>';
 			print '<td class="right nowraponall"><strong>' . FactureSituationMigration::badgeStatus($cycle_summary['ecart_ttc_ok'], '0', price($cycle_summary['ecart_ttc'])) . '</strong></td>';
 			print '<td class="center">' . FactureSituationMigration::badgeStatus($cycle_summary['status_ok'], 'OK', $langs->trans('Error')) . '</td>';
-			print '</td>';
+			print '<td class="center"></td>';
 			print '</tr>';
 		}
 
@@ -439,6 +467,16 @@ if ($cycle_ref > 0) {
 				}
 			}
 			print '</td>';
+			print '<td class="center">';
+			if ((int) $info['type'] == (int) Facture::TYPE_SITUATION && empty($info['facture_ok'])) {
+				$fac_corr_items = array(array(
+					'label' => 'FactureSituationMigrationApplyExpectedFacture',
+					'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=facture&target_id='.((int) $info['facture_id']).'&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
+					'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedFactureConfirm'))."')"),
+				));
+				print fsmCorrectionDropdown($fac_corr_items);
+			}
+			print '</td>';
 			print '</tr>';
 
 			print $secondary_errors['html'];
@@ -488,6 +526,16 @@ if ($cycle_ref > 0) {
 						if ($secondary_errors['nb_err'] > 0) {
 							print '(' . $secondary_errors['nb_err'] . ')';
 						}
+					}
+					print '</td>';
+					print '<td class="center">';
+					if (((int) $line['product_type'] === 0 || (int) $line['product_type'] === 1) && empty($line['line_ok'])) {
+						$line_corr_items = array(array(
+							'label' => 'FactureSituationMigrationApplyExpectedLine',
+							'urlraw' => $_SERVER['PHP_SELF'].'?action=apply_expected&scope=line&target_id='.((int) $line_id).'&token='.newToken().'&cycle_ref='.$cycle_ref.$params,
+							'attr' => array('onclick' => "return confirm('".dol_escape_js($langs->trans('FactureSituationMigrationApplyExpectedLineConfirm'))."')"),
+						));
+						print fsmCorrectionDropdown($line_corr_items);
 					}
 					print '</td>';
 					print '</tr>';
@@ -701,6 +749,7 @@ function printInvoiceHeaders($counter = -1)
 		$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . ' ' . $label . '</td>';
 	}
 	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationCorrection') . '</td>';
 	$out .= '</tr>';
 
 	return $out;
@@ -728,6 +777,7 @@ function printInvoiceLineHeaders($counter, $line_id = -1)
 	$out .= '<td class="right">HT ' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
 	$out .= '<td class="right">HT ' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
 	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationStatus') . '</td>';
+	$out .= '<td class="center">' . $langs->trans('FactureSituationMigrationCorrection') . '</td>';
 	$out .= '</tr>';
 
 	return $out;
@@ -772,7 +822,7 @@ function printSecondaryAmountsDetails($secondary_fields, $info, $expected, $coun
 	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationCurrentValue') . '</td>';
 	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationExpectedDelta') . '</td>';
 	$out .= '<td class="right">' . $langs->trans('FactureSituationMigrationDeviation') . '</td>';
-	$out .= '<td colspan="5"></td>';
+	$out .= '<td colspan="6"></td>';
 	$out .= '</tr>';
 
 	foreach ($secondary_fields as $field => $label) {
@@ -784,7 +834,7 @@ function printSecondaryAmountsDetails($secondary_fields, $info, $expected, $coun
 		$out .= '<td class="right nowraponall">' . price($expected[$field]) . '</td>';
 		$ecart = price($info['ecart_' . $field]);
 		$out .= '<td class="right nowraponall">' . FactureSituationMigration::badgeStatus($info['ecart_' . $field . '_ok'], $ecart, $ecart) . '</td>';
-		$out .= '<td colspan="5"></td>';
+		$out .= '<td colspan="6"></td>';
 		$out .= '</tr>';
 	}
 
@@ -796,4 +846,34 @@ function printSecondaryAmountsDetails($secondary_fields, $info, $expected, $coun
 	$result = array('html' => $out, 'nb' => count($secondary_fields), 'nb_err' => $nb_err);
 
 	return $result;
+}
+
+/**
+ * Build a "Correction" dropdown button. Always renders a native Dolibarr dropdown
+ * (same markup as dolGetButtonAction with several sub-buttons), even for a single
+ * action - dolGetButtonAction only builds a dropdown from 2+ sub-buttons. Each item
+ * link is rendered through dolGetButtonAction to keep the standard button markup.
+ *
+ * @param	array	$items	List of actions: each array('label'=>langkey, 'urlraw'=>url, 'attr'=>array)
+ * @return	string			HTML string
+ */
+function fsmCorrectionDropdown($items)
+{
+	global $langs;
+
+	if (empty($items)) {
+		return '';
+	}
+
+	$label = $langs->trans('FactureSituationMigrationCorrection');
+	$out = '<div class="dropdown inline-block dropdown-holder">';
+	$out .= '<a style="margin-right: auto;" class="dropdown-toggle classfortooltip butAction" title="'.dol_escape_htmltag($label).'" data-toggle="dropdown">'.$label.'</a>';
+	$out .= '<div class="dropdown-content">';
+	foreach ($items as $it) {
+		$out .= dolGetButtonAction('', $langs->trans($it['label']), 'default', $it['urlraw'], '', 1, array('attr' => (empty($it['attr']) ? array() : $it['attr'])));
+	}
+	$out .= '</div>';
+	$out .= '</div>';
+
+	return $out;
 }

@@ -1,6 +1,9 @@
 # CHANGELOG FACTURESITUATIONMIGRATION FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
 ## Staging
+- NEW - Écran de vérification : boutons « Correction » (menu déroulant, via `dolGetButtonAction`) aux niveaux cycle, facture et ligne, affichés uniquement en cas d'écart. Au niveau cycle : « Considérer le cycle comme OK » (sans modifier les données) et « Appliquer les valeurs attendues ».
+- NEW - Application des valeurs attendues : ne corrige que les lignes réellement en écart (les lignes/factures correctes ne sont jamais réécrites). Pour chaque facture : forçage en dur des totaux d'en-tête au montant réglé si la facture est intégralement payée (`paye = 1` ou reste à payer nul), sinon recalcul des totaux depuis les lignes. Revérification du cycle après correction avec affichage du résultat.
+- NEW - Vérification : `getVerificationCycleDetail` expose le statut de paiement par facture ; une facture intégralement payée dont l'écart au backup est corrigé est considérée OK même si son en-tête diffère de la somme des lignes d'un centime (arrondi mode 1↔mode 2).
 - MAJ - Seules les lignes réellement facturables sont migrées (product_type 0=produit / 1=service) ; les lignes texte/commentaire/sous-total (autre product_type) sont laissées intactes et exclues de la vérification. Remplace l'ancien filtre basé sur le special_code 104777.
 - MAJ - Migration : les montants de ligne (HT, TVA, TTC, taxes locales, devise) sont recalculés via `calcul_price_total` sur le pourcentage delta — comme le fait Dolibarr nativement (représentation mode 2 canonique) — au lieu de soustraire les montants cumulés stockés. Supprime la dépendance à la correction conditionnelle d'`update_price`.
 - MAJ - Vérification rendue indépendante du calcul de migration : pourcentage / HT / taxes locales / HT devise comparés au delta du backup ; TVA vérifiée au niveau facture ; TTC dérivé des composantes attendues pour rester cohérent (ttc = ht + tva + taxes locales).

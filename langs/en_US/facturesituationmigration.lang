@@ -170,3 +170,21 @@ FactureSituationMigrationWarningStep2NoCyclesCurrentYear = No cycles to migrate 
 FactureSituationMigrationWarningStep2AlreadyIndexed = All cycles are already indexed, nothing to add
 FactureSituationMigrationWarningStep3NothingToDo = All cycles are already migrated, nothing to do
 FactureSituationMigrationWarningStep3PartialErrors = %s cycles out of %s encountered errors during migration
+
+#
+# Correction (verification screen)
+#
+FactureSituationMigrationCorrection = Correction
+FactureSituationMigrationForceCycleOk = Consider this cycle as OK
+FactureSituationMigrationForceCycleOkConfirm = Mark this cycle as OK without changing any data?
+FactureSituationMigrationForceCycleOkDone = Cycle %s marked as OK.
+FactureSituationMigrationApplyExpectedCycle = Apply expected values (whole cycle)
+FactureSituationMigrationApplyExpectedFacture = Apply expected values to the invoice
+FactureSituationMigrationApplyExpectedLine = Apply expected values to the line
+FactureSituationMigrationApplyExpectedCycleConfirm = Update all invoices and their lines in this cycle with the expected values?
+FactureSituationMigrationApplyExpectedFactureConfirm = Update this invoice and its lines with the expected values?
+FactureSituationMigrationApplyExpectedLineConfirm = Update this line with the expected values?
+FactureSituationMigrationApplyExpectedDone = Correction applied: %s change(s).
+FactureSituationMigrationErrorApplyExpectedLine = Failed to update line %s with the expected values: %s
+FactureSituationMigrationErrorApplyExpectedFetch = Failed to load invoice %s while applying the expected values.
+FactureSituationMigrationErrorApplyExpectedUpdatePrice = Failed to recompute the totals of invoice %s: %s

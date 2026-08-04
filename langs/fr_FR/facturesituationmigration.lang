@@ -170,3 +170,21 @@ FactureSituationMigrationWarningStep2NoCyclesCurrentYear = Aucun cycle à migrer
 FactureSituationMigrationWarningStep2AlreadyIndexed = Toutes les cycles sont déjà indexées, rien à ajouter
 FactureSituationMigrationWarningStep3NothingToDo = Tous les cycles sont déjà migrés, rien à faire
 FactureSituationMigrationWarningStep3PartialErrors = %s cycles sur %s ont rencontré des erreurs lors de la migration
+
+#
+# Correction (écran de vérification)
+#
+FactureSituationMigrationCorrection = Correction
+FactureSituationMigrationForceCycleOk = Considérer ce cycle comme OK
+FactureSituationMigrationForceCycleOkConfirm = Marquer ce cycle comme OK sans modifier les données ?
+FactureSituationMigrationForceCycleOkDone = Cycle %s marqué comme OK.
+FactureSituationMigrationApplyExpectedCycle = Appliquer les valeurs attendues (tout le cycle)
+FactureSituationMigrationApplyExpectedFacture = Appliquer les valeurs attendues à la facture
+FactureSituationMigrationApplyExpectedLine = Appliquer les valeurs attendues à la ligne
+FactureSituationMigrationApplyExpectedCycleConfirm = Modifier toutes les factures et leurs lignes de ce cycle avec les valeurs attendues ?
+FactureSituationMigrationApplyExpectedFactureConfirm = Modifier cette facture et ses lignes avec les valeurs attendues ?
+FactureSituationMigrationApplyExpectedLineConfirm = Modifier cette ligne avec les valeurs attendues ?
+FactureSituationMigrationApplyExpectedDone = Correction appliquée : %s modification(s).
+FactureSituationMigrationErrorApplyExpectedLine = Échec de la mise à jour de la ligne %s avec les valeurs attendues : %s
+FactureSituationMigrationErrorApplyExpectedFetch = Échec du chargement de la facture %s lors de l'application des valeurs attendues.
+FactureSituationMigrationErrorApplyExpectedUpdatePrice = Échec du recalcul des totaux de la facture %s : %s
