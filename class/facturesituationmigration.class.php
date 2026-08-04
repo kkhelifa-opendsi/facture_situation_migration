@@ -1368,6 +1368,14 @@ class FactureSituationMigration
 		$ecart_ht_sql = '(SUM(f.total_ht) - SUM(bk.total_ht))';
 		$ecart_ttc_sql = '(SUM(f.total_ttc) - SUM(bk.total_ttc))';
 
+		// nb_factures must count ALL invoices of the cycle (situation invoices AND their
+		// credit notes/avoirs). The main query is driven by the backup table (INNER JOIN bk),
+		// which has no rows for credit notes, so COUNT(*) would omit them. Count on the full
+		// facture table via a correlated subquery on the cycle ref instead.
+		$nb_factures_sql = "(SELECT COUNT(*) FROM ".MAIN_DB_PREFIX.$this->table_facture." as f2";
+		$nb_factures_sql .= " WHERE f2.situation_cycle_ref = bk.situation_cycle_ref";
+		$nb_factures_sql .= " AND f2.entity IN (".$entityList."))";
+
 		$from_where = " FROM ".MAIN_DB_PREFIX.$this->table_backupfac." as bk";
 		$from_where .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = bk.rowid";
 		$from_where .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_migration." as m ON COALESCE(m.situation_cycle_ref, 0) = COALESCE(bk.situation_cycle_ref, 0)";
@@ -1459,7 +1467,7 @@ class FactureSituationMigration
 		$sql_page .= " SUM(f.total_ttc) as current_ttc,";
 		$sql_page .= " ROUND(".$ecart_ht_sql.", 2) as ecart_ht,";
 		$sql_page .= " ROUND(".$ecart_ttc_sql.", 2) as ecart_ttc,";
-		$sql_page .= " COUNT(*) as nb_factures,";
+		$sql_page .= " ".$nb_factures_sql." as nb_factures,";
 		$sql_page .= " MAX(EXTRACT(YEAR FROM bk.datef)) as year,";
 		$sql_page .= " MIN(COALESCE(m.status, 0)) as status_ok";
 		$sql_page .= $from_where;
@@ -1502,6 +1510,89 @@ class FactureSituationMigration
 	}
 
 	/**
+	 * Get the credit notes (avoirs) attached to a situation cycle, with their lines.
+	 *
+	 * Credit notes are deliberately excluded from getVerificationCycleDetail() (they
+	 * share the situation_counter of the invoice they credit and would collide there,
+	 * and they are not migrated / have no backup). This method returns them separately
+	 * for INFORMATIONAL display on the cycle screen: only the current stored values are
+	 * exposed — there is no backup, expected or ecart, since nothing was migrated.
+	 *
+	 * @param  int   $cycle_ref  Situation cycle reference
+	 * @return array             Array keyed by facture_id (empty array on no result or SQL error)
+	 */
+	public function getCycleCreditNotes($cycle_ref)
+	{
+		$entityList = getEntity('facture');
+		$credits = array();
+
+		$sql = "SELECT f.rowid as facture_id, f.ref, f.type, f.situation_counter,";
+		$sql .= " f.total_ht, f.total_tva, f.total_ttc";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_facture." as f";
+		$sql .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
+		$sql .= " AND f.entity IN (".$entityList.")";
+		$sql .= " AND f.type = ".((int) Facture::TYPE_CREDIT_NOTE);
+		$sql .= " ORDER BY f.rowid ASC";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			dol_syslog('getCycleCreditNotes: SQL error on invoices query: '.$this->db->lasterror().' sql='.$sql, LOG_ERR, 0, '_situationmigration');
+			return array();
+		}
+		while ($obj = $this->db->fetch_object($resql)) {
+			$credits[(int) $obj->facture_id] = array(
+				'facture_id' => (int) $obj->facture_id,
+				'ref' => $obj->ref,
+				'type' => (int) $obj->type,
+				'situation_counter' => (int) $obj->situation_counter,
+				'total_ht' => (float) $obj->total_ht,
+				'total_tva' => (float) $obj->total_tva,
+				'total_ttc' => (float) $obj->total_ttc,
+				'lines' => array(),
+			);
+		}
+		$this->db->free($resql);
+
+		if (empty($credits)) {
+			return $credits;
+		}
+
+		$sql_lines = "SELECT fd.rowid as line_id, fd.fk_facture, fd.label, fd.description, fd.product_type,";
+		$sql_lines .= " fd.situation_percent, fd.total_ht, fd.total_tva, fd.total_ttc";
+		$sql_lines .= " FROM ".MAIN_DB_PREFIX.$this->table_facturedet." as fd";
+		$sql_lines .= " INNER JOIN ".MAIN_DB_PREFIX.$this->table_facture." as f ON f.rowid = fd.fk_facture";
+		$sql_lines .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
+		$sql_lines .= " AND f.entity IN (".$entityList.")";
+		$sql_lines .= " AND f.type = ".((int) Facture::TYPE_CREDIT_NOTE);
+		$sql_lines .= " ORDER BY fd.fk_facture ASC, fd.rowid ASC";
+
+		$resql = $this->db->query($sql_lines);
+		if ($resql) {
+			while ($obj = $this->db->fetch_object($resql)) {
+				$fid = (int) $obj->fk_facture;
+				if (!isset($credits[$fid])) {
+					continue;
+				}
+				$credits[$fid]['lines'][(int) $obj->line_id] = array(
+					'line_id' => (int) $obj->line_id,
+					'label' => $obj->label,
+					'description' => $obj->description,
+					'product_type' => (int) $obj->product_type,
+					'situation_percent' => (float) $obj->situation_percent,
+					'total_ht' => (float) $obj->total_ht,
+					'total_tva' => (float) $obj->total_tva,
+					'total_ttc' => (float) $obj->total_ttc,
+				);
+			}
+			$this->db->free($resql);
+		} else {
+			dol_syslog('getCycleCreditNotes: SQL error on lines query: '.$this->db->lasterror().' sql='.$sql_lines, LOG_ERR, 0, '_situationmigration');
+		}
+
+		return $credits;
+	}
+
+	/**
 	 * Get detailed comparison for a specific cycle (invoices and lines).
 	 *
 	 * On SQL error, $this->error is populated and the method returns false.
@@ -1533,6 +1624,11 @@ class FactureSituationMigration
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_backupfac." as bk ON bk.rowid = f.rowid";
 		$sql .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
 		$sql .= " AND f.entity IN (".$entityList.")";
+		// Exclude credit notes (avoirs): they share the situation_counter of the invoice
+		// they credit, which would collide in $detail (keyed by situation_counter) and
+		// merge their lines into the situation invoice. Credit notes are not migrated and
+		// have no backup row, so they are already out of the cycles list (INNER JOIN backup).
+		$sql .= " AND f.type <> ".((int) Facture::TYPE_CREDIT_NOTE);
 		$sql .= " ORDER BY f.situation_counter ASC";
 
 		$resql = $this->db->query($sql);
@@ -1606,6 +1702,9 @@ class FactureSituationMigration
 		$sql_lines .= " LEFT JOIN ".MAIN_DB_PREFIX.$this->table_backupdet." as bk_fd ON bk_fd.rowid = fd.rowid";
 		$sql_lines .= " WHERE f.situation_cycle_ref = ".((int) $cycle_ref);
 		$sql_lines .= " AND f.entity IN (".$entityList.")";
+		// Exclude credit note lines (see the invoices query above): they share the
+		// situation_counter of the credited invoice and would pollute $detail[counter]['lines'].
+		$sql_lines .= " AND f.type <> ".((int) Facture::TYPE_CREDIT_NOTE);
 		$sql_lines .= " ORDER BY f.situation_counter ASC, fd.rowid ASC";
 
 		$resql = $this->db->query($sql_lines);

@@ -416,6 +416,17 @@ if ($cycle_ref > 0) {
 	} else {
 		$detail = $verify['detail'];
 
+		// Credit notes (avoirs) of the cycle: shown for information only. They are not
+		// migrated (no backup, expected or ecart) and are excluded from the checks. They are
+		// displayed as their own block, in cycle order: right after the situation invoice they
+		// credit (same situation_counter). Grouped by counter so each block can be interleaved.
+		$credit_notes = $migration->getCycleCreditNotes($cycle_ref);
+		$cn_by_counter = array();
+		foreach ($credit_notes as $cn) {
+			$cn_by_counter[(int) $cn['situation_counter']][] = $cn;
+		}
+		$cn_rendered = array();
+
 		// Single table with 12 columns, two headers
 		print '<table class="noborder centpercent">';
 
@@ -588,6 +599,23 @@ if ($cycle_ref > 0) {
 				if ($idxInvoice < $nbInvoices) {
 					print printInvoiceHeaders($counter);
 				}
+			}
+
+			// Credit note block(s) crediting this situation: rendered right after it,
+			// keeping the cycle's facture/avoir display order (as in Dolibarr).
+			if (!empty($cn_by_counter[$counter])) {
+				foreach ($cn_by_counter[$counter] as $cn) {
+					printCreditNoteBlock($db, $langs, $cn);
+					$cn_rendered[(int) $cn['facture_id']] = true;
+				}
+			}
+		}
+
+		// Orphan credit notes: their situation_counter matches no situation invoice in the
+		// cycle detail (edge case). Render them at the end so none are silently dropped.
+		foreach ($credit_notes as $cn) {
+			if (empty($cn_rendered[(int) $cn['facture_id']])) {
+				printCreditNoteBlock($db, $langs, $cn);
 			}
 		}
 		print '</table>';
@@ -769,6 +797,85 @@ print dol_get_fiche_end();
 
 llxFooter();
 $db->close();
+
+/**
+ * Print a credit note (avoir) block: main invoice row + collapsible lines.
+ *
+ * Credit notes are not migrated (no backup, expected or ecart), so only the current
+ * stored values are shown, with a neutral "not migrated" badge. Rendered as its own
+ * block in the cycle's facture/avoir order, right after the situation invoice it credits.
+ *
+ * @param	DoliDB		$db		Database handler
+ * @param	Translate	$langs	Language object
+ * @param	array		$cn		Credit note data from getCycleCreditNotes()
+ * @return	void
+ */
+function printCreditNoteBlock($db, $langs, $cn)
+{
+	$cn_id = (int) $cn['facture_id'];
+	$cn_nb_lines = count($cn['lines']);
+
+	$cn_static = new Facture($db);
+	$cn_static->id = $cn['facture_id'];
+	$cn_static->ref = $cn['ref'];
+	$cn_static->type = $cn['type'];
+
+	print '<tr class="oddeven">';
+	print '<td' . ($cn_nb_lines > 0 ? ' onclick="jQuery(\'.lines-av-' . $cn_id . '\').toggle(); return false;" title="' . dol_escape_js($langs->trans('FactureSituationMigrationShowLines')) . '"' : '') . '>';
+	print $langs->trans('CreditNote');
+	if ($cn_nb_lines > 0) {
+		print '<i class="fas fa-chevron-down paddingleft paddingright"></i>(' . $cn_nb_lines . ')';
+	}
+	print '</td>';
+	print '<td>' . $cn_static->getNomUrl(1) . '</td>';
+	print '<td>' . $cn_static->getLibType() . '</td>';
+	print '<td class="right"></td>';
+	print '<td class="right nowraponall">' . price($cn['total_ht']) . '</td>';
+	print '<td class="right"></td>';
+	print '<td class="right"></td>';
+	print '<td class="right"></td>';
+	print '<td class="right nowraponall">' . price($cn['total_ttc']) . '</td>';
+	print '<td class="right"></td>';
+	print '<td class="right"></td>';
+	print '<td class="center">' . dolGetBadge($langs->trans('FactureSituationMigrationCycleNotMigrated'), '', 'status0', 'status') . '</td>';
+	print '<td class="center"></td>';
+	print '</tr>';
+
+	if ($cn_nb_lines > 0) {
+		print '<tr class="liste_titre lines-av-' . $cn_id . ' fsm-lines-hidden">';
+		print '<td>' . $langs->trans('FactureSituationMigrationLineId', '') . '</td>';
+		print '<td colspan="2">Description</td>';
+		print '<td class="right"></td>';
+		print '<td class="right">%</td>';
+		print '<td class="right"></td>';
+		print '<td class="right"></td>';
+		print '<td class="right"></td>';
+		print '<td class="right">HT</td>';
+		print '<td class="right"></td>';
+		print '<td class="right nowraponall">TTC</td>';
+		print '<td class="center"></td>';
+		print '<td class="center"></td>';
+		print '</tr>';
+		foreach ($cn['lines'] as $cn_line_id => $cn_line) {
+			$cn_desc = !empty($cn_line['label']) ? $cn_line['label'] : $cn_line['description'];
+			$cn_desc = dol_trunc(dol_string_nohtmltag($cn_desc), 40);
+			print '<tr class="oddeven lines-av-' . $cn_id . ' fsm-lines-hidden">';
+			print '<td>' . $langs->trans('FactureSituationMigrationLineId', $cn_line_id) . '</td>';
+			print '<td colspan="2">' . dol_escape_htmltag($cn_desc) . '</td>';
+			print '<td class="right"></td>';
+			print '<td class="right nowraponall">' . $cn_line['situation_percent'] . '%</td>';
+			print '<td class="right"></td>';
+			print '<td class="right"></td>';
+			print '<td class="right"></td>';
+			print '<td class="right nowraponall">' . price($cn_line['total_ht']) . '</td>';
+			print '<td class="right"></td>';
+			print '<td class="right nowraponall">' . price($cn_line['total_ttc']) . '</td>';
+			print '<td class="center"></td>';
+			print '<td class="center"></td>';
+			print '</tr>';
+		}
+	}
+}
 
 /**
  * Get invoice headers HTML to show
